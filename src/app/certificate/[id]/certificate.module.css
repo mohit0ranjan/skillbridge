@@ -1,0 +1,192 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap');
+
+.certificatePage {
+  font-family: 'Inter', sans-serif;
+}
+
+.certificateFrameWrap {
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.certificate {
+  width: 1120px;
+  height: 792px;
+  margin: 20px auto 0;
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  position: relative;
+  padding: 60px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.borderAccent {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  bottom: 15px;
+  border: 2px solid #16a34a;
+  pointer-events: none;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+  position: relative;
+  z-index: 1;
+}
+
+.brand {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.subtitle {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #64748b;
+  margin-top: 5px;
+}
+
+.title {
+  text-align: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 42px;
+  margin: 40px 0 20px;
+  color: #0f172a;
+  position: relative;
+  z-index: 1;
+}
+
+.line {
+  width: 120px;
+  height: 2px;
+  background: #16a34a;
+  margin: 0 auto 30px;
+  position: relative;
+  z-index: 1;
+}
+
+.content {
+  text-align: center;
+  padding: 0 48px;
+  position: relative;
+  z-index: 1;
+}
+
+.smallText {
+  font-size: 18px;
+  color: #475569;
+  margin-bottom: 12px;
+}
+
+.name {
+  font-family: 'Playfair Display', serif;
+  font-size: 48px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 12px 0;
+}
+
+.desc {
+  font-size: 20px;
+  color: #475569;
+  line-height: 1.7;
+  margin-top: 12px;
+}
+
+.highlight {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.footer {
+  position: absolute;
+  bottom: 50px;
+  left: 60px;
+  right: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.signature {
+  text-align: left;
+}
+
+.signatureLine {
+  width: 200px;
+  height: 1px;
+  background: #0f172a;
+  margin-bottom: 8px;
+}
+
+.signatureText {
+  font-size: 14px;
+  color: #475569;
+}
+
+.details {
+  text-align: right;
+  font-size: 14px;
+  color: #475569;
+}
+
+.certificateId {
+  position: absolute;
+  top: 40px;
+  right: 60px;
+  font-size: 13px;
+  color: #64748b;
+  z-index: 1;
+}
+
+.verify {
+  position: absolute;
+  bottom: 20px;
+  left: 60px;
+  right: 60px;
+  text-align: center;
+  font-size: 13px;
+  color: #16a34a;
+}
+
+.sealWatermark {
+  position: absolute;
+  left: 50%;
+  top: 49%;
+  transform: translate(-50%, -50%);
+  font-family: 'Playfair Display', serif;
+  font-size: 52px;
+  letter-spacing: 2px;
+  color: rgba(22, 163, 74, 0.08);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 1280px) {
+  .certificate {
+    transform: scale(0.9);
+    transform-origin: top center;
+    margin-bottom: -44px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .certificate {
+    transform: scale(0.82);
+    margin-bottom: -92px;
+  }
+}
+
+@media (max-width: 900px) {
+  .certificate {
+    transform: none;
+    width: 1120px;
+    margin: 20px 0 0;
+  }
+}

@@ -1,0 +1,268 @@
+@import "tailwindcss";
+
+/* ─── Design Tokens ─── */
+@theme {
+  /* Brand Green — premium SaaS palette */
+  --color-brand: #16a34a;
+  --color-brand-light: #22c55e;
+  --color-brand-dark: #15803d;
+  --color-brand-surface: #f0fdf4;
+  --color-brand-muted: #dcfce7;
+  --color-brand-border: #bbf7d0;
+
+  /* Neutrals provided by user */
+  --neutral-bg: #e3ece7;
+  --neutral-text: #165a36;
+  --neutral-text-muted: #1e7546;
+  
+  /* Additional neutral shades for cards/borders to maintain standard contrast */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+
+  /* Override internal font settings */
+  --font-sans: var(--font-sans), sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: var(--neutral-bg); 
+    --foreground: var(--neutral-text); 
+    --text-muted: var(--neutral-text-muted); 
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    @apply antialiased;
+  }
+
+  /* Accessible focus styles */
+  *:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Clean headings using Inter */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--foreground);
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  /* ─── Global Component System ─── */
+
+  /* Primary Button - High conversion, premium feel */
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 text-white font-semibold rounded-xl transition-all duration-300 cursor-pointer border border-transparent whitespace-nowrap;
+    background: linear-gradient(180deg, var(--color-brand-light) 0%, var(--color-brand) 100%);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  }
+  .btn-primary:hover {
+    background: linear-gradient(180deg, var(--color-brand) 0%, var(--color-brand-dark) 100%);
+    box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transform: translateY(-1.5px);
+  }
+  .btn-primary:active {
+    transform: scale(0.98) translateY(0);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
+  .btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Secondary Button - Clean ghost/outline style */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-white font-semibold rounded-xl border transition-all duration-300 cursor-pointer whitespace-nowrap shadow-sm;
+    color: var(--color-brand);
+    border-color: var(--color-brand-muted);
+  }
+  .btn-secondary:hover {
+    @apply bg-green-50;
+    border-color: var(--color-brand-border);
+    color: var(--color-brand-dark);
+  }
+  .btn-secondary:active {
+    transform: scale(0.98);
+    box-shadow: none;
+  }
+  .btn-secondary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Ghost Button / Tertiary */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-5 py-2.5 font-semibold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap;
+    color: var(--neutral-text-muted);
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-brand-surface);
+    color: var(--color-brand);
+  }
+
+  /* Button size modifiers */
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+  .btn-lg {
+    @apply px-8 py-3.5 text-base;
+  }
+
+  /* Base Premium Card */
+  .card {
+    @apply bg-white rounded-2xl border transition-all duration-300;
+    border-color: rgba(22, 163, 74, 0.1);
+    box-shadow: 0 4px 20px -10px rgba(0, 0, 0, 0.05);
+  }
+  .card:hover {
+    box-shadow: 0 12px 32px -12px rgba(22, 163, 74, 0.15);
+    border-color: rgba(22, 163, 74, 0.2);
+    transform: translateY(-2px);
+  }
+
+  /* Dashboard card — consistent radius and spacing */
+  .dash-card {
+    @apply bg-white rounded-2xl border border-gray-200 p-6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Dashboard metric — compact stat display */
+  .dash-metric {
+    @apply bg-white rounded-xl border border-gray-200 p-5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Dashboard inner block — for nested content areas */
+  .dash-inner {
+    @apply rounded-lg border border-gray-100 bg-gray-50 p-4;
+  }
+
+  /* Form Inputs - Standardized clean SaaS inputs */
+  .input-base {
+    @apply w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-green-500 transition-all duration-200 shadow-sm;
+    --tw-ring-color: rgba(22, 163, 74, 0.2);
+  }
+
+  /* Core section labeling */
+  .section-label {
+    @apply text-xs font-bold tracking-widest uppercase flex items-center gap-3 mb-5;
+    color: var(--color-brand);
+  }
+  .section-label::before {
+    content: '';
+    @apply w-6 h-px block;
+    background: var(--color-brand);
+  }
+
+  /* Dashboard tab navigation */
+  .dash-tab {
+    @apply px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap;
+    color: var(--color-neutral-500);
+  }
+  .dash-tab:hover {
+    color: var(--color-neutral-900);
+    background-color: var(--color-neutral-100);
+  }
+  .dash-tab-active {
+    @apply px-4 py-2.5 text-sm font-semibold rounded-lg cursor-pointer whitespace-nowrap;
+    color: var(--color-brand-dark);
+    background-color: var(--color-brand-surface);
+    border: 1px solid var(--color-brand-border);
+  }
+
+  /* Status badge */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide uppercase;
+  }
+  .status-badge-default {
+    @apply bg-gray-100 text-gray-600;
+  }
+  .status-badge-success {
+    background-color: var(--color-brand-surface);
+    color: var(--color-brand-dark);
+  }
+  .status-badge-warning {
+    @apply bg-amber-50 text-amber-700;
+  }
+  .status-badge-pending {
+    @apply bg-orange-50 text-orange-600;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .trust-marquee {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .trust-track {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding-right: 0.9rem;
+    animation: trust-marquee 34s linear infinite;
+  }
+
+  .trust-fade-left,
+  .trust-fade-right {
+    position: absolute;
+    top: 0;
+    width: 4.5rem;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .trust-fade-left {
+    left: 0;
+    background: linear-gradient(to right, var(--background), transparent);
+  }
+
+  .trust-fade-right {
+    right: 0;
+    background: linear-gradient(to left, var(--background), transparent);
+  }
+
+  .cert-modal-overlay {
+    @apply fixed inset-0 flex items-center justify-center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+  }
+  
+  .cert-modal-content {
+    @apply relative w-[94%] max-w-[680px] max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 md:p-8;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@keyframes trust-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
