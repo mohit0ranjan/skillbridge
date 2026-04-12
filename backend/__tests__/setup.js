@@ -6,6 +6,8 @@
 // Set test environment
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key-12345678901234567890';
+process.env.JWT_RESET_SECRET = 'test-reset-secret-12345678901234567890';
+process.env.JWT_VERIFY_EMAIL_SECRET = 'test-verify-secret-12345678901234567890';
 
 // Mock console to reduce noise
 global.console = {

@@ -282,6 +282,16 @@ const createOrder = async (req, res, next) => {
       ));
     }
 
+    // Clean up old failed payments to allow retry
+    // This prevents unique constraint violations on idempotencyKey
+    await prisma.payment.deleteMany({
+      where: {
+        userId,
+        internshipId: resolvedInternshipId,
+        status: 'FAILED'
+      }
+    });
+
     const amountInPaise = normalizedInternshipPrice;
     const options = {
       amount: amountInPaise,

@@ -229,9 +229,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+let server;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  server = app.listen(PORT, () => {
     console.log(`
 ╔════════════════════════════════════════╗
 ║     🚀 SkillBridge API Server 🚀      ║
@@ -246,6 +247,35 @@ if (require.main === module) {
     console.log(`📍 Docs: http://localhost:${PORT}/api/docs`);
   });
 }
+
+function shutdown(signal) {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+
+  if (!server) {
+    process.exit(0);
+    return;
+  }
+
+  // Stop accepting new requests and allow in-flight requests to finish.
+  server.close((err) => {
+    if (err) {
+      console.error('Error during server shutdown:', err);
+      process.exit(1);
+      return;
+    }
+    console.log('HTTP server closed cleanly.');
+    process.exit(0);
+  });
+
+  // Force exit if graceful shutdown takes too long.
+  setTimeout(() => {
+    console.error('Forcing shutdown after timeout.');
+    process.exit(1);
+  }, 15000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);

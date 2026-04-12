@@ -475,6 +475,28 @@ export const internships: Internship[] = [
       { week: 4, title: "Executive Deck", type: "Presentation", estimatedTime: "3-4 hours", description: "Present recommendations to stakeholders.", steps: ["Summary", "Insights", "Recommendations", "Roadmap"] },
     ],
   },
+  {
+    id: "test-internship",
+    title: "🧪 Test Internship (₹10 Only)",
+    projectTitle: "Verify Payment Flow",
+    domain: "Payments",
+    duration: "1 Week",
+    level: "Beginner Friendly",
+    originalPrice: 1000,
+    price: 1000,
+    iconName: "Code2",
+    tasks: [
+      "Complete Razorpay payment",
+      "Verify order enrollment",
+      "Test payment webhook",
+      "Verify certificate generation",
+    ],
+    includes: ["Safe test environment", "Instant access", "Payment verification", "Test certificate"],
+    description: "Low-cost testing internship to verify the complete payment and enrollment flow end-to-end.",
+    weeklyTasks: [
+      { week: 1, title: "Payment Verification Check", type: "Testing", estimatedTime: "15 mins", description: "Complete a safe Razorpay payment to verify order creation, signature validation, and enrollment access.", steps: ["Open apply page", "Select test internship", "Complete payment", "Verify access granted"] },
+    ],
+  },
 ];
 
 export const faqs = [
