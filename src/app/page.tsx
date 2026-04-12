@@ -1,32 +1,46 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import Trust from "@/components/Trust";
-import Problem from "@/components/Problem";
-import Features from "@/components/Features";
-import Stats from "@/components/Stats";
 import Domains from "@/components/Domains";
+import HowItWorks from "@/components/HowItWorks";
 import CertificateShowcase from "@/components/CertificateShowcase";
 import Testimonials from "@/components/Testimonials";
-import Pricing from "@/components/Pricing";
 import CTA from "@/components/CTA";
 import Footer from "@/components/Footer";
+import StickyMobileCTA from "@/components/StickyMobileCTA";
 
 export default function Home() {
   return (
-    <div className="min-h-screen font-sans">
+    <div className="min-h-screen font-sans pb-24 md:pb-0">
       <Navbar />
       <main>
+        {/* 🟢 MOBILE-FIRST HIGH-CONVERTING FUNNEL */}
+        
+        {/* 1. Hero — Outcome-focused, price visible */}
         <Hero />
+        
+        {/* 2. Trust Signals — Build confidence early */}
         <Trust />
-        <Problem />
-        <Features />
-        <Stats />
+        
+        {/* 3. Programs (MONEY SECTION) — 2-col grid, optimized, urgency tags */}
         <Domains />
+        
+        {/* 4. How It Works — Simplified 3-4 steps */}
+        <HowItWorks />
+        
+        {/* 5. Certificate Preview — Resume value proof */}
         <CertificateShowcase />
+        
+        {/* 6. Testimonials — Real student social proof */}
         <Testimonials />
-        <Pricing />
+        
+        {/* 7. Final CTA — Emotional close */}
         <CTA />
       </main>
+      
+      {/* 🔥 STICKY MOBILE CTA — Always visible, high conversion */}
+      <StickyMobileCTA />
+      
       <Footer />
     </div>
   );

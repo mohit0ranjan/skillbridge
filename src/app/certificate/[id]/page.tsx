@@ -3,6 +3,7 @@ import { BadgeCheck, Download } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import styles from "./certificate.module.css";
+import Image from "next/image";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -10,7 +11,10 @@ type PageProps = {
 
 async function getRealCertificate(id: string) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/certificate/${id}`, { cache: "no-store" });
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+    if (!apiBase) return null;
+
+    const res = await fetch(`${apiBase}/api/certificate/${id}`, { cache: "no-store" });
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.success || !json.data) return null;
@@ -48,7 +52,8 @@ export default async function CertificateViewPage({ params }: PageProps) {
     );
   }
 
-  const downloadPdfUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/certificate/${certificate.certificateId}/pdf`;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+  const downloadPdfUrl = `${apiBase}/api/certificate/${certificate.certificateId}/pdf`;
   const issueDate = new Date(certificate.issueDate).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
@@ -90,18 +95,25 @@ export default async function CertificateViewPage({ params }: PageProps) {
               </div>
 
               <div className={styles.footer}>
-                <div className={styles.signature}>
-                  <div className={styles.signatureLine} />
-                  <div className={styles.signatureText}>Program Director<br />SkillBridge</div>
+                <div className={styles.metaBlock}>
+                  <p className={styles.durationText}>Duration: {certificate.duration || "4 Weeks"}</p>
+                  <p className={styles.issueText}>Issue Date: {issueDate}</p>
+
+                  <div className={styles.authorityLogos}>
+                    <Image src="/msme logo.png" alt="MSME" width={96} height={40} className={styles.authorityLogo} unoptimized />
+                    <Image src="/skill india logo.png" alt="Skill India" width={100} height={40} className={styles.authorityLogo} unoptimized />
+                  </div>
                 </div>
 
-                <div className={styles.details}>
-                  Issue Date: {issueDate}
+                <div className={styles.signature}>
+                  <Image src="/sign.png" alt="Program Director Signature" width={132} height={42} className={styles.signatureImage} unoptimized />
+                  <div className={styles.signatureLine} />
+                  <div className={styles.signatureText}>Program Director<br />SkillBridge Certification Authority</div>
                 </div>
               </div>
 
               <div className={styles.verify}>
-                Verify at: skillbridge.in/verify-certificate?id={certificate.certificateId}
+                Verify at: skillbridge.co.in/verify-certificate?id={certificate.certificateId}
               </div>
             </div>
           </section>

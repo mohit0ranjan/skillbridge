@@ -3,6 +3,7 @@ const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const { isDatabaseUnavailableError, buildFallbackDashboard } = require('../utils/devFallback');
+const { buildCurriculumTasks, groupTasksByWeek } = require('../utils/internshipCurriculum');
 
 /**
  * Enroll user in internship
@@ -119,33 +120,10 @@ const getDashboard = async (req, res, next) => {
       return next(new ApiError('User not found', 404, 'USER_NOT_FOUND'));
     }
 
-    const groupTasksByWeek = (tasks) => {
-      const orderedWeeks = [...new Set(tasks.map((task) => task.week))].sort((a, b) => a - b);
-
-      return orderedWeeks.map((week) => {
-        const weekTasks = tasks.filter((task) => task.week === week);
-        const resources = [...new Set(weekTasks.flatMap((task) => {
-          if (!task.resources) return [];
-          return task.resources.split(',').map((item) => item.trim()).filter(Boolean);
-        }))];
-
-        return {
-          week,
-          title: `Week ${week}`,
-          description: weekTasks[0]?.description || 'Guided learning module',
-          resources,
-          tasks: weekTasks.map((task) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description
-          }))
-        };
-      });
-    };
-
     // Process enrollments with progress
     const enrollments = userInternships.map(ui => {
-      const weeks = groupTasksByWeek(ui.internship.tasks);
+      const sourceTasks = ui.internship.tasks.length > 0 ? ui.internship.tasks : buildCurriculumTasks(ui.internship);
+      const weeks = groupTasksByWeek(sourceTasks);
       const totalWeeks = weeks.length;
       const submission = finalSubmissions.find(sub => sub.internshipId === ui.internshipId) || null;
       const progress = submission
@@ -170,16 +148,14 @@ const getDashboard = async (req, res, next) => {
           submitted: submission ? 1 : 0,
           approved: submission ? 1 : 0
         },
-        tasks: ui.internship.tasks.map(task => {
-          return {
-            id: task.id,
-            title: task.title,
-            week: task.week,
-            status: 'pending',
-            submissionStatus: null,
-            feedback: null
-          };
-        }),
+        tasks: sourceTasks.map((task, index) => ({
+          id: task.id || `${ui.internshipId}-task-${index + 1}`,
+          title: task.title,
+          week: task.week,
+          status: 'pending',
+          submissionStatus: null,
+          feedback: null
+        })),
         weeks,
         finalSubmission: submission ? {
           id: submission.id,
@@ -245,4 +221,41 @@ const getDashboard = async (req, res, next) => {
   }
 };
 
-module.exports = { enroll, getDashboard };
+const getMyInternships = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const enrollments = await prisma.userInternship.findMany({
+      where: { userId },
+      include: {
+        internship: {
+          select: {
+            id: true,
+            title: true,
+            domain: true,
+            duration: true,
+            level: true,
+            price: true,
+            description: true,
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const data = enrollments.map((entry) => ({
+      enrollmentId: entry.id,
+      status: entry.status,
+      progress: entry.progress,
+      completedWeeks: entry.completedWeeks,
+      enrolledAt: entry.createdAt,
+      internship: entry.internship,
+    }));
+
+    res.json(ApiResponse.success(data, 'User internships retrieved successfully', 200));
+  } catch (error) {
+    next(new ApiError(`Failed to fetch user internships: ${error.message}`, 500, 'MY_INTERNSHIPS_FAILED'));
+  }
+};
+
+module.exports = { enroll, getDashboard, getMyInternships };

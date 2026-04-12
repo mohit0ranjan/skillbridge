@@ -17,6 +17,7 @@ import {
   Users,
   Users2,
 } from "lucide-react";
+import StickyMobileCTA from "@/components/StickyMobileCTA";
 
 const PRINCIPLES = [
   {
@@ -99,7 +100,7 @@ export default function AboutPage() {
     <div className="min-h-screen font-sans bg-[#fafaf8]">
       <Navbar />
 
-      <main className="pt-28 md:pt-32 pb-20 overflow-hidden">
+      <main className="pt-28 md:pt-32 pb-24 md:pb-20 overflow-hidden">
         <section className="px-4 sm:px-6">
           <div className="max-w-[1180px] mx-auto relative">
             <div className="absolute -top-12 right-0 h-56 w-56 rounded-full bg-green-100/30 blur-3xl pointer-events-none" />
@@ -293,7 +294,8 @@ export default function AboutPage() {
           </div>
         </section>
       </main>
-
+      
+      <StickyMobileCTA />
       <Footer />
     </div>
   );

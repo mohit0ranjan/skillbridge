@@ -51,7 +51,12 @@ const schemas = {
   // Payment
   createOrder: Joi.object({
     amount: Joi.number().positive().required(),
-    internshipId: Joi.string().uuid().required(),
+    internshipId: Joi.string().uuid().optional(),
+    internshipTitle: Joi.string().min(3).max(150).optional(),
+    internshipDomain: Joi.string().max(100).optional().allow('', null),
+    internshipDuration: Joi.string().max(50).optional().allow('', null),
+    internshipLevel: Joi.string().max(80).optional().allow('', null),
+    internshipDescription: Joi.string().max(1000).optional().allow('', null),
     certificateId: Joi.string().uuid().optional(),
   }),
 
@@ -60,13 +65,13 @@ const schemas = {
     razorpay_payment_id: Joi.string().required(),
     razorpay_signature: Joi.string().required(),
     paymentId: Joi.string().uuid().required(),
-    internshipId: Joi.string().uuid().required(),
+    internshipId: Joi.string().uuid().optional(),
   }),
 
   markPaymentFailed: Joi.object({
     razorpay_order_id: Joi.string().required(),
     paymentId: Joi.string().uuid().required(),
-    internshipId: Joi.string().uuid().required(),
+    internshipId: Joi.string().uuid().optional(),
     reason: Joi.string().max(500).optional().allow('', null),
   }),
 

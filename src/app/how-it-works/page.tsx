@@ -2,6 +2,7 @@
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import StickyMobileCTA from "@/components/StickyMobileCTA";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import { UserPlus, Layers, CheckSquare, ShieldCheck, Rocket, ArrowRight } from "lucide-react";
@@ -133,7 +134,7 @@ export default function HowItWorksPage() {
     <div className="min-h-screen bg-[#fafaf8] font-sans selection:bg-green-100 selection:text-green-900">
       <Navbar />
 
-      <main className="pt-28 md:pt-32 pb-24">
+      <main className="pt-28 md:pt-32 pb-24 md:pb-0">
         {/* Hero */}
         <section className="text-center px-4 sm:px-6 mb-20 md:mb-32">
           <motion.div
@@ -235,6 +236,7 @@ export default function HowItWorksPage() {
 
       </main>
 
+      <StickyMobileCTA />
       <Footer />
     </div>
   );

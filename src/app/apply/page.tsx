@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ArrowLeft, ArrowRight, Shield, Mail, Cpu, Code2, LineChart, Database, Loader2 } from "lucide-react";
+import { CheckCircle2, ArrowLeft, Shield, Cpu, Code2, LineChart, Database, Loader2, Search } from "lucide-react";
 import { internships } from "@/lib/skillo-data";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
@@ -28,6 +28,30 @@ const iconMap: Record<string, any> = {
   LineChart: LineChart,
   Database: Database,
 };
+
+type CategoryTab = "All" | "Development" | "AI / Data" | "Design";
+
+const CATEGORY_TABS: CategoryTab[] = ["All", "Development", "AI / Data", "Design"];
+
+function getInternshipCategory(domain: string): Exclude<CategoryTab, "All"> {
+  const value = domain.toLowerCase();
+  if (
+    value.includes("ai") ||
+    value.includes("ml") ||
+    value.includes("data") ||
+    value.includes("analytics") ||
+    value.includes("power bi") ||
+    value.includes("tableau")
+  ) {
+    return "AI / Data";
+  }
+
+  if (value.includes("ui") || value.includes("ux") || value.includes("design")) {
+    return "Design";
+  }
+
+  return "Development";
+}
 
 declare global {
   interface Window {
@@ -79,9 +103,10 @@ function ApplyPageInner() {
   const [step, setStep] = useState(1);
   const [selectedId, setSelectedId] = useState(internships[0].id);
   const [backendInternships, setBackendInternships] = useState<BackendInternship[]>([]);
-  const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [activeCategory, setActiveCategory] = useState<CategoryTab>("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [form, setForm] = useState<FormData>({
     fullName: user?.name || "",
     email: user?.email || "",
@@ -119,6 +144,28 @@ function ApplyPageInner() {
   }, []);
 
   const internship = useMemo(() => internships.find((i) => i.id === selectedId) ?? internships[0], [selectedId]);
+
+  const filteredInternships = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return internships.filter((item) => {
+      const category = getInternshipCategory(item.domain);
+      const categoryMatch = activeCategory === "All" || category === activeCategory;
+      const searchMatch =
+        query.length === 0 ||
+        item.title.toLowerCase().includes(query) ||
+        item.domain.toLowerCase().includes(query);
+
+      return categoryMatch && searchMatch;
+    });
+  }, [activeCategory, searchQuery]);
+
+  useEffect(() => {
+    if (!filteredInternships.length) return;
+    if (!filteredInternships.some((item) => item.id === selectedId)) {
+      setSelectedId(filteredInternships[0].id);
+    }
+  }, [filteredInternships, selectedId]);
 
   const backendInternship = useMemo(() => {
     if (!backendInternships.length) return null;
@@ -162,15 +209,13 @@ function ApplyPageInner() {
       const internshipIdForEnrollment = backendInternship?.id;
       const priceToPay = backendInternship?.price ?? internship.price;
 
-      if (!internshipIdForEnrollment) {
-        throw new Error("Selected internship is unavailable right now. Please try again.");
-      }
-
       // If it's a free internship, skip payment gateway
       if (priceToPay === 0) {
+        if (!internshipIdForEnrollment) {
+          throw new Error("Selected free internship is unavailable right now. Please try again.");
+        }
         await api.enroll(internshipIdForEnrollment);
-        setSubmitted(true);
-        setLoading(false);
+        router.push("/dashboard?payment=success");
         return;
       }
 
@@ -184,78 +229,99 @@ function ApplyPageInner() {
         throw new Error("Razorpay checkout failed to load. Disable ad blocker and try again.");
       }
 
-      const orderData = await api.createOrder(priceToPay / 100, undefined, internshipIdForEnrollment);
+      const orderData = await api.createOrder(
+        priceToPay / 100,
+        undefined,
+        internshipIdForEnrollment,
+        {
+          title: internship.title,
+          domain: internship.domain,
+          duration: internship.duration,
+          level: internship.level,
+          description: internship.description,
+        }
+      );
+
+      const resolvedInternshipId = orderData.internshipId;
+
+      if (!resolvedInternshipId) {
+        throw new Error("Unable to resolve internship from server. Please try again.");
+      }
 
       if ((orderData as any).alreadyProcessed || (orderData as any).accessGranted) {
-        setSubmitted(true);
-        setLoading(false);
+        router.push("/dashboard?payment=success");
         return;
       }
-        
-        const options = {
-          key: razorpayKey,
-          amount: Math.round(orderData.amount * 100), // Razorpay expects paise
-          currency: "INR",
-          name: "SkillBridge",
-          description: `${internship.title} Internship`,
-          order_id: orderData.orderId,
-          prefill: {
-            name: form.fullName,
-            email: form.email,
-          },
-          handler: async (response: any) => {
-            try {
-              await api.verifyPayment({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                paymentId: orderData.paymentId,
-                internshipId: internshipIdForEnrollment,
-              });
-              setSubmitted(true);
-            } catch {
-              setError("Payment verification failed. Please contact support.");
-              router.push("/dashboard?payment=failed");
-            }
-            setLoading(false);
-          },
-          modal: {
-            ondismiss: async () => {
-              setLoading(false);
-              try {
-                await api.markPaymentFailed({
-                  razorpay_order_id: orderData.orderId,
-                  paymentId: orderData.paymentId,
-                  internshipId: internshipIdForEnrollment,
-                  reason: "Checkout closed before successful payment",
-                });
-              } catch {
-                // Best-effort failure recording
-              }
-              router.push("/dashboard?payment=failed");
-            },
-          },
-          theme: { color: "#10b981" },
-        };
 
-        const rzp = new window.Razorpay(options);
-        rzp.on("payment.failed", async (response: any) => {
+      const options = {
+        key: razorpayKey,
+        amount: Math.round(orderData.amount * 100), // Razorpay expects paise
+        currency: "INR",
+        name: "SkillBridge",
+        description: `${internship.title} Internship`,
+        order_id: orderData.orderId,
+        prefill: {
+          name: form.fullName,
+          email: form.email,
+        },
+        handler: async (response: any) => {
           try {
-            await api.markPaymentFailed({
-              razorpay_order_id: response?.error?.metadata?.order_id || orderData.orderId,
+            await api.verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
               paymentId: orderData.paymentId,
-              internshipId: internshipIdForEnrollment,
-              reason: response?.error?.description || "Payment failed",
+              internshipId: resolvedInternshipId,
             });
+            router.push("/dashboard?payment=success");
           } catch {
-            // Best-effort failure recording
+            setError("Payment verification failed. Please contact support.");
+            router.push("/dashboard?payment=failed");
           }
           setLoading(false);
-          router.push("/dashboard?payment=failed");
-        });
-        rzp.open();
-        modalOpened = true;
-        return; // Don't set loading to false here — Razorpay modal handles it
+        },
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+        },
+        modal: {
+          ondismiss: async () => {
+            setLoading(false);
+            try {
+              await api.markPaymentFailed({
+                razorpay_order_id: orderData.orderId,
+                paymentId: orderData.paymentId,
+                internshipId: resolvedInternshipId,
+                reason: "Checkout closed before successful payment",
+              });
+            } catch {
+              // Best-effort failure recording
+            }
+            router.push("/dashboard?payment=failed");
+          },
+        },
+        theme: { color: "#10b981" },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", async (response: any) => {
+        try {
+          await api.markPaymentFailed({
+            razorpay_order_id: response?.error?.metadata?.order_id || orderData.orderId,
+            paymentId: orderData.paymentId,
+            internshipId: resolvedInternshipId,
+            reason: response?.error?.description || "Payment failed",
+          });
+        } catch {
+          // Best-effort failure recording
+        }
+        setLoading(false);
+        router.push("/dashboard?payment=failed");
+      });
+      rzp.open();
+      modalOpened = true;
+      return; // Don't set loading to false here — Razorpay modal handles it
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -280,56 +346,6 @@ function ApplyPageInner() {
     if (step > 1) setStep((p) => p - 1);
   }
 
-  // Success state
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-6 font-sans">
-        <div className="w-full max-w-[480px] bg-white rounded-[16px] border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-[#10b981] h-2 w-full" />
-          <div className="p-8 md:p-10 text-center">
-            <div className="w-16 h-16 rounded-[12px] bg-[#ecfdf5] border border-[#d1fae5] flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="w-8 h-8 text-[#10b981]" />
-            </div>
-
-            <h1 className="text-[24px] font-semibold text-gray-900 tracking-tight mb-2">
-              You&apos;re In!
-            </h1>
-            <p className="text-[14px] text-gray-500 mb-8 leading-relaxed">
-              You&apos;ve been enrolled in {internship.title}. Check your email for confirmation details.
-            </p>
-
-            <div className="rounded-[12px] border border-gray-200 bg-gray-50 p-5 mb-8 text-left text-[14px]">
-              <div className="flex items-center gap-3 pb-4 border-b border-gray-200 mb-4">
-                <Mail className="w-5 h-5 text-gray-400 shrink-0" />
-                <div>
-                  <p className="font-medium text-gray-900">Confirmation Sent</p>
-                  <p className="text-[12px] text-gray-500">Details sent to {form.email || "your email"}</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Program</span>
-                  <span className="font-semibold text-gray-900">{internship.title}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Duration</span>
-                  <span className="font-medium text-gray-900">{internship.duration}</span>
-                </div>
-              </div>
-            </div>
-
-            <Link
-              href="/dashboard"
-              className="w-full flex items-center justify-center gap-2 py-3 bg-[#10b981] hover:bg-[#059669] text-white font-medium rounded-[8px] text-[14px] transition-colors"
-            >
-              Go to Dashboard <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
@@ -346,9 +362,9 @@ function ApplyPageInner() {
         </div>
       </header>
 
-      <main className="max-w-[800px] mx-auto px-4 sm:px-6 py-8 md:py-16">
+      <main className="max-w-[980px] mx-auto px-4 sm:px-6 py-6 md:py-10 pb-28">
         {/* Progress Stepper */}
-        <div className="mb-12">
+        <div className="mb-7">
           <div className="flex items-center justify-between relative">
              <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-gray-200 z-0 hidden sm:block" />
              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-[1px] bg-[#10b981] z-0 hidden sm:block transition-all duration-300" style={{ width: `${((step - 1) / (STEPS.length - 1)) * 100}%` }} />
@@ -376,43 +392,85 @@ function ApplyPageInner() {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 p-3 rounded-[8px] bg-red-50 border border-red-200 text-[13px] text-red-700 font-medium">{error}</div>
+          <div className="mb-4 p-3 rounded-[8px] bg-red-50 border border-red-200 text-[13px] text-red-700 font-medium">{error}</div>
         )}
 
         {/* Step content */}
         <div className="bg-white border border-gray-200 rounded-[16px] shadow-sm overflow-hidden">
-          <div className="p-8 md:p-10">
+          <div className="p-5 md:p-7">
             {step === 1 && (
               <div>
                 <h2 className="text-[20px] font-semibold text-gray-900 tracking-tight mb-2">Select Program</h2>
-                <p className="text-[14px] text-gray-500 mb-8">Choose the internship you want to join.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {internships.map((item) => {
-                    const sel = selectedId === item.id;
-                    const IconComp = iconMap[item.iconName] || Code2;
+                <p className="text-[13px] text-gray-500 mb-4">Pick quickly with filters and search.</p>
+
+                <div className="mb-3 relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search Internship..."
+                    className="w-full rounded-[9px] border border-gray-200 pl-9 pr-3 py-2 text-[13px] text-gray-900 placeholder:text-gray-400 outline-none focus:ring-1 focus:ring-[#10b981] focus:border-[#10b981]"
+                  />
+                </div>
+
+                <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1">
+                  {CATEGORY_TABS.map((tab) => {
+                    const isActive = activeCategory === tab;
                     return (
                       <button
-                        key={item.id}
+                        key={tab}
                         type="button"
-                        onClick={() => setSelectedId(item.id)}
-                        className={`text-left rounded-[12px] border p-5 transition-all outline-none ${
-                          sel ? "border-[#10b981] bg-[#ecfdf5]/30 ring-1 ring-[#10b981]" : "border-gray-200 bg-white hover:border-gray-300"
+                        onClick={() => setActiveCategory(tab)}
+                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${
+                          isActive
+                            ? "border-[#10b981] bg-[#ecfdf5] text-[#047857]"
+                            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-4">
-                          <div className={`w-10 h-10 rounded-[8px] flex items-center justify-center ${sel ? "bg-[#10b981] text-white" : "bg-gray-50 text-gray-600 border border-gray-200"}`}>
-                            <IconComp className="w-5 h-5" />
-                          </div>
-                          {sel && <CheckCircle2 className="w-5 h-5 text-[#10b981]" />}
-                        </div>
-                        <h3 className="font-semibold text-gray-900 text-[15px] mb-1">{item.title}</h3>
-                        <p className="text-[12px] text-gray-500 mb-3">{item.duration}</p>
-                        <p className="text-[16px] font-semibold text-gray-900 pt-3 border-t border-gray-100">₹{item.price}</p>
+                        {tab}
                       </button>
                     );
                   })}
                 </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 md:gap-3">
+                  {filteredInternships.map((item) => {
+                    const sel = selectedId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`text-left rounded-[10px] border p-3 transition-all ${
+                          sel ? "border-[#10b981] bg-[#ecfdf5]/40 ring-1 ring-[#10b981]/70" : "border-gray-200 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h3 className="font-semibold text-gray-900 text-[12px] leading-snug line-clamp-2 min-h-[2rem]">{item.title}</h3>
+                          {sel && <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0" />}
+                        </div>
+                        <p className="text-[11px] text-gray-500">{item.duration}</p>
+                        <p className="text-[14px] font-bold text-gray-900 mt-0.5 mb-2.5">₹{item.price / 100}</p>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(item.id)}
+                          className={`w-full rounded-[7px] py-1.5 text-[12px] font-semibold border transition-colors ${
+                            sel
+                              ? "border-[#10b981] bg-[#10b981] text-white"
+                              : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          {sel ? "Selected" : "Select"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!filteredInternships.length && (
+                  <div className="mt-4 rounded-[10px] border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-center">
+                    <p className="text-[13px] text-gray-600">No internship found. Try a different search or tab.</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -550,7 +608,10 @@ function ApplyPageInner() {
           </div>
 
           {/* Navigation Bar */}
-          <div className="bg-gray-50 border-t border-gray-200 p-4 sm:p-6 md:px-10 flex items-center justify-between">
+          {step === 1 ? (
+            <div className="hidden" />
+          ) : (
+            <div className="bg-gray-50 border-t border-gray-200 p-4 sm:p-6 md:px-10 flex items-center justify-between">
             <button type="button" onClick={prev} disabled={step === 1}
               className="px-4 py-2 rounded-[6px] text-[13px] font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               Go Back
@@ -569,9 +630,28 @@ function ApplyPageInner() {
                 "Continue"
               )}
             </button>
-          </div>
+            </div>
+          )}
         </div>
       </main>
+
+      {step === 1 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
+          <div className="max-w-[980px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Selected Internship</p>
+              <p className="text-[13px] font-semibold text-gray-900 truncate">{internship.title}</p>
+            </div>
+            <button
+              type="button"
+              onClick={next}
+              className="shrink-0 px-4 py-2 rounded-[8px] bg-[#10b981] hover:bg-[#059669] text-white text-[12px] md:text-[13px] font-semibold transition-colors"
+            >
+              Continue to Payment ₹{internship.price / 100}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

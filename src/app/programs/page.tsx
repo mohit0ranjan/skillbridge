@@ -7,6 +7,8 @@ import {
   Clock3,
   Search,
   SlidersHorizontal,
+  Star,
+  Zap,
   Cpu,
   Code2,
   LineChart,
@@ -15,8 +17,9 @@ import {
 import { internships } from "@/lib/skillo-data";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import StickyMobileCTA from "@/components/StickyMobileCTA";
 
-const FILTERS = ["All", "Beginner", "2 Weeks", "4 Weeks"];
+const FILTERS = ["All", "AI", "Python", "Web", "Data Science"];
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Cpu: Cpu,
@@ -36,9 +39,10 @@ export default function ProgramsPage() {
       !i.domain.toLowerCase().includes(search.toLowerCase())
     )
       return false;
-    if (filter === "Beginner") return i.level === "Beginner Friendly";
-    if (filter === "2 Weeks") return i.duration === "2 Weeks";
-    if (filter === "4 Weeks") return i.duration === "4 Weeks";
+    if (filter === "AI") return i.domain.toLowerCase().includes("ai") || i.domain.toLowerCase().includes("ml");
+    if (filter === "Python") return i.domain.toLowerCase().includes("python");
+    if (filter === "Web") return i.domain.toLowerCase().includes("web");
+    if (filter === "Data Science") return i.domain.toLowerCase().includes("data science");
     return true;
   });
 
@@ -46,7 +50,7 @@ export default function ProgramsPage() {
     <div className="min-h-screen font-sans">
       <Navbar />
 
-      <main className="max-w-[1100px] mx-auto px-6 pt-28 pb-16 md:pt-32 md:pb-20">
+      <main className="max-w-[1100px] mx-auto px-6 pt-28 pb-24 md:pt-32 md:pb-20">
         <div className="mb-10 max-w-2xl">
           <div className="section-label">Programs</div>
           <h1 className="text-[32px] md:text-[40px] font-bold text-gray-900 tracking-tight leading-[1.1] mb-4">
@@ -89,7 +93,7 @@ export default function ProgramsPage() {
         </div>
 
         {/* Card Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {filtered.map((internship) => {
             const IconComponent = iconMap[internship.iconName] || Code2;
 
@@ -97,42 +101,59 @@ export default function ProgramsPage() {
               <Link
                 key={internship.id}
                 href={`/programs/${internship.id}`}
-                className="group block rounded-2xl bg-white border border-gray-200 p-6 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+                className="group block rounded-2xl bg-white border border-gray-200 p-4 md:p-5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
               >
-                <div className="flex items-start justify-between mb-5">
+                <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center text-green-600">
                     <IconComponent className="w-5 h-5" />
                   </div>
-                  <div className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-medium text-gray-600">
-                    {internship.domain}
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-600 text-white text-[10px] font-bold">
+                    <Zap className="w-3 h-3" />
+                    Popular
                   </div>
                 </div>
 
-                <h3 className="text-[16px] font-semibold text-gray-900 tracking-tight mb-2">
+                <h3 className="text-[14px] sm:text-[15px] font-bold text-gray-900 tracking-tight mb-2">
                   {internship.title}
                 </h3>
-                <p className="text-[13px] text-gray-500 leading-relaxed mb-6 line-clamp-2 min-h-[40px]">
+                
+                {/* Ratings */}
+                <div className="flex items-center gap-1.5 mb-3">
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" strokeWidth={0} />
+                    ))}
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-700">4.8</span>
+                  <span className="text-[11px] text-gray-400">(128)</span>
+                </div>
+                
+                <p className="text-[12px] text-gray-500 leading-relaxed mb-3 line-clamp-1">
                   {internship.description}
                 </p>
 
-                <div className="flex items-center gap-4 mb-6">
-                  <span className="flex items-center gap-1.5 text-[12px] font-medium text-gray-500">
+                {/* Urgency Indicator */}
+                <div className="inline-flex items-center gap-1.5 mb-4 px-3 py-1.5 rounded-lg bg-red-50 border border-red-100">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                  <span className="text-[10px] font-bold text-red-700">5 seats left</span>
+                </div>
+
+                <div className="flex items-center gap-3 mb-4 text-[12px]">
+                  <span className="flex items-center gap-1.5 text-gray-500">
                     <Clock3 className="w-3.5 h-3.5 text-gray-400" />
                     {internship.duration}
                   </span>
-                  <span className="flex items-center gap-1.5 text-[12px] font-medium text-gray-500">
-                    <div className="w-3.5 h-3.5 rounded border border-gray-400 bg-gray-50 flex items-center justify-center">
-                      <div className="w-1 h-1 bg-gray-400 rounded-sm" />
-                    </div>
-                    {internship.tasks.length} Modules
-                  </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <p className="text-[16px] font-semibold text-gray-900">
-                    ₹{internship.price / 100}
-                  </p>
-                  <span className="flex items-center gap-1.5 text-[12px] font-medium text-green-600 group-hover:underline transition-all">
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <div>
+                    <p className="text-[10px] font-bold text-red-600 mb-1">🔥 Limited Time Offer</p>
+                    <p className="text-[10px] text-gray-400 line-through">₹{internship.originalPrice / 100}</p>
+                    <p className="text-[15px] font-bold text-gray-900">
+                      ₹{internship.price / 100}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-white bg-green-600 px-3 py-1.5 rounded-lg group-hover:bg-green-700 transition-all">
                     View Details <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
@@ -149,7 +170,8 @@ export default function ProgramsPage() {
           </div>
         )}
       </main>
-
+      
+      <StickyMobileCTA />
       <Footer />
     </div>
   );

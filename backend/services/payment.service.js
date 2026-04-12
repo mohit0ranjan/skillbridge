@@ -3,19 +3,53 @@ const crypto = require('crypto');
 
 let razorpayInstance = null;
 
-if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-  razorpayInstance = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-  });
-}
+const resolveRazorpayConfig = () => {
+  const razorpayMode = (process.env.RAZORPAY_MODE || (process.env.NODE_ENV === 'production' ? 'live' : 'test')).toLowerCase();
+  const razorpayKeyId = razorpayMode === 'live'
+    ? (process.env.RAZORPAY_KEY_ID_LIVE || process.env.RAZORPAY_KEY_ID)
+    : (process.env.RAZORPAY_KEY_ID_TEST || process.env.RAZORPAY_KEY_ID);
+  const razorpayKeySecret = razorpayMode === 'live'
+    ? (process.env.RAZORPAY_KEY_SECRET_LIVE || process.env.RAZORPAY_KEY_SECRET)
+    : (process.env.RAZORPAY_KEY_SECRET_TEST || process.env.RAZORPAY_KEY_SECRET);
+
+  return { razorpayMode, razorpayKeyId, razorpayKeySecret };
+};
+
+const getRazorpayClient = () => {
+  const { razorpayMode, razorpayKeyId, razorpayKeySecret } = resolveRazorpayConfig();
+
+  if (!razorpayKeyId || !razorpayKeySecret) {
+    return null;
+  }
+
+  const needsRefresh = !razorpayInstance
+    || razorpayInstance.__skillbridgeKeyId !== razorpayKeyId
+    || razorpayInstance.__skillbridgeKeySecret !== razorpayKeySecret;
+
+  if (needsRefresh) {
+    razorpayInstance = new Razorpay({
+      key_id: razorpayKeyId,
+      key_secret: razorpayKeySecret,
+    });
+    razorpayInstance.__skillbridgeKeyId = razorpayKeyId;
+    razorpayInstance.__skillbridgeKeySecret = razorpayKeySecret;
+
+    if (razorpayMode === 'live' && /^rzp_test_/i.test(razorpayKeyId)) {
+      console.warn('⚠️ Razorpay live mode is enabled, but a test key ID is configured. Update RAZORPAY_KEY_ID_LIVE / RAZORPAY_KEY_SECRET_LIVE.');
+    }
+  }
+
+  return razorpayInstance;
+};
 
 /**
  * Verify Razorpay payment signature using timing-safe comparison.
  * Prevents timing side-channel attacks on signature forgery.
  */
 const verifyPayment = (order_id, payment_id, signature) => {
-  if (!process.env.RAZORPAY_KEY_SECRET) {
+  const { razorpayKeySecret } = resolveRazorpayConfig();
+
+  if (!razorpayKeySecret) {
     return false;
   }
 
@@ -25,7 +59,7 @@ const verifyPayment = (order_id, payment_id, signature) => {
 
   const body = order_id + "|" + payment_id;
   const expectedSignature = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .createHmac('sha256', razorpayKeySecret)
     .update(body.toString())
     .digest('hex');
 
@@ -41,23 +75,33 @@ const verifyPayment = (order_id, payment_id, signature) => {
 };
 
 const fetchPaymentDetails = async (paymentId) => {
-  if (!razorpayInstance || !paymentId) {
+  const client = getRazorpayClient();
+
+  if (!client || !paymentId) {
     return null;
   }
 
-  return razorpayInstance.payments.fetch(paymentId);
+  return client.payments.fetch(paymentId);
 };
 
 const fetchOrderDetails = async (orderId) => {
-  if (!razorpayInstance || !orderId) {
+  const client = getRazorpayClient();
+
+  if (!client || !orderId) {
     return null;
   }
 
-  return razorpayInstance.orders.fetch(orderId);
+  return client.orders.fetch(orderId);
 };
 
 module.exports = {
-  razorpay: razorpayInstance,
+  get razorpay() {
+    return getRazorpayClient();
+  },
+  get razorpayMode() {
+    return resolveRazorpayConfig().razorpayMode;
+  },
+  getRazorpayClient,
   verifyPayment,
   fetchPaymentDetails,
   fetchOrderDetails,

@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import StickyMobileCTA from "@/components/StickyMobileCTA";
 import { Mail, MapPin, Clock3 } from "lucide-react";
 
 export default function ContactPage() {
@@ -7,7 +8,7 @@ export default function ContactPage() {
     <div className="min-h-screen font-sans">
       <Navbar />
 
-      <main className="max-w-[1100px] mx-auto px-6 pt-28 pb-16 md:pt-32 md:pb-20">
+      <main className="max-w-[1100px] mx-auto px-6 pt-28 pb-24 md:pt-32 md:pb-20">
         <div className="max-w-2xl mx-auto mb-12 text-center">
           <div className="section-label justify-center">Contact</div>
           <h1 className="text-[32px] md:text-[40px] font-bold text-gray-900 tracking-tight leading-[1.08] mb-3">
@@ -99,6 +100,7 @@ export default function ContactPage() {
         </div>
       </main>
 
+      <StickyMobileCTA />
       <Footer />
     </div>
   );

@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const prisma = require('../prisma');
-const { razorpay, verifyPayment, fetchPaymentDetails, fetchOrderDetails } = require('../services/payment.service');
+const paymentService = require('../services/payment.service');
 const { generateCertificateId } = require('../utils/generateCertificateId');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const emailServiceModule = require('../services/email.service');
@@ -28,6 +28,18 @@ const parseWebhookBody = (body) => {
   }
 
   return body;
+};
+
+const normalizePriceToPaise = (price) => {
+  const numericPrice = Number(price || 0);
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) return 0;
+
+  // Legacy rows may store rupees (e.g. 299) while gateway expects paise.
+  if (numericPrice < 1000) {
+    return Math.round(numericPrice * 100);
+  }
+
+  return Math.round(numericPrice);
 };
 
 const upsertEnrollmentForPayment = async (db, payment) => {
@@ -73,13 +85,15 @@ const markPaymentFailedEndpoint = async (req, res, next) => {
     const { razorpay_order_id, paymentId, internshipId, reason } = req.validatedBody;
     const userId = req.user.id;
 
+    const paymentWhere = {
+      id: paymentId,
+      userId,
+      razorpayOrderId: razorpay_order_id,
+      ...(internshipId ? { internshipId } : {}),
+    };
+
     const payment = await prisma.payment.findFirst({
-      where: {
-        id: paymentId,
-        userId,
-        internshipId,
-        razorpayOrderId: razorpay_order_id,
-      }
+      where: paymentWhere
     });
 
     if (!payment) {
@@ -115,48 +129,120 @@ const markPaymentFailedEndpoint = async (req, res, next) => {
  */
 const createOrder = async (req, res, next) => {
   try {
-    const { amount, internshipId } = req.validatedBody;
+    const {
+      amount,
+      internshipId,
+      internshipTitle,
+      internshipDomain,
+      internshipDuration,
+      internshipLevel,
+      internshipDescription,
+    } = req.validatedBody;
     const userId = req.user.id;
 
-    if (!razorpay) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[createOrder] Received internship payload', {
+        userId,
+        internshipId: internshipId || null,
+        internshipTitle: internshipTitle || null,
+        amount,
+      });
+    }
+
+    if (!paymentService.razorpay) {
       return next(new ApiError('Payment gateway not configured', 503, 'GATEWAY_DOWN'));
     }
 
-    if (!internshipId) {
-      return next(new ApiError('Internship ID is required for payment', 400, 'MISSING_INTERNSHIP_ID'));
+    if (!internshipId && !internshipTitle) {
+      return next(new ApiError('Internship information is required for payment', 400, 'MISSING_INTERNSHIP_INFO'));
     }
 
-    const internship = await prisma.internship.findUnique({
-      where: { id: internshipId },
-      select: { id: true, title: true, duration: true, price: true },
-    });
+    let internship = null;
+
+    if (internshipId) {
+      internship = await prisma.internship.findUnique({
+        where: { id: internshipId },
+        select: { id: true, title: true, duration: true, level: true, domain: true, description: true, price: true },
+      });
+
+      if (!internship) {
+        console.log('[createOrder] No internship found by id, will try title fallback', { internshipId });
+      }
+    }
+
+    if (!internship && internshipTitle) {
+      internship = await prisma.internship.findFirst({
+        where: {
+          title: { equals: internshipTitle, mode: 'insensitive' }
+        },
+        select: { id: true, title: true, duration: true, level: true, domain: true, description: true, price: true },
+      });
+
+      if (internship) {
+        console.log('[createOrder] Internship resolved by title lookup', { internshipId: internship.id, internshipTitle });
+      }
+    }
+
+    // If internship does not yet exist in DB, create from trusted frontend metadata.
+    if (!internship && internshipTitle) {
+      internship = await prisma.internship.create({
+        data: {
+          title: internshipTitle,
+          domain: internshipDomain || 'General',
+          duration: internshipDuration || '4 Weeks',
+          level: internshipLevel || 'Beginner Friendly',
+          description: internshipDescription || null,
+          price: Math.round(amount * 100),
+        },
+        select: { id: true, title: true, duration: true, level: true, domain: true, description: true, price: true },
+      });
+
+      console.log('[createOrder] Internship created from metadata fallback', {
+        internshipId: internship.id,
+        internshipTitle: internship.title,
+        internshipPrice: internship.price,
+      });
+    }
 
     if (!internship) {
-      return next(new ApiError('Internship not found', 404, 'INTERNSHIP_NOT_FOUND'));
+      console.log('[createOrder] Internship resolution failed', { internshipId, internshipTitle });
+      return next(new ApiError('Internship not found in database', 404, 'INTERNSHIP_NOT_FOUND'));
     }
 
-    if ((internship.price || 0) <= 0) {
+    const resolvedInternshipId = internship.id;
+
+    const normalizedInternshipPrice = normalizePriceToPaise(internship.price);
+
+    if (normalizedInternshipPrice <= 0) {
       return next(new ApiError('This internship does not require payment', 400, 'PAYMENT_NOT_REQUIRED'));
     }
 
-    if (amount && Math.round(amount * 100) !== internship.price) {
+    if (normalizedInternshipPrice !== internship.price) {
+      internship = await prisma.internship.update({
+        where: { id: internship.id },
+        data: { price: normalizedInternshipPrice },
+        select: { id: true, title: true, duration: true, level: true, domain: true, description: true, price: true },
+      });
+    }
+
+    if (amount && Math.round(amount * 100) !== normalizedInternshipPrice) {
       return next(new ApiError('Payment amount does not match internship price', 400, 'AMOUNT_MISMATCH', {
-        expectedAmount: internship.price / 100,
+        expectedAmount: normalizedInternshipPrice / 100,
       }));
     }
 
     const existingEnrollment = await prisma.userInternship.findUnique({
-      where: { userId_internshipId: { userId, internshipId } }
+      where: { userId_internshipId: { userId, internshipId: resolvedInternshipId } }
     });
 
     if (existingEnrollment) {
       return next(new ApiError('You are already enrolled in this internship', 409, 'ALREADY_ENROLLED', {
-        internshipId,
+        internshipId: resolvedInternshipId,
       }));
     }
 
     const existingSuccessfulPayment = await prisma.payment.findFirst({
-      where: { userId, internshipId, status: 'SUCCESS' },
+      where: { userId, internshipId: resolvedInternshipId, status: 'SUCCESS' },
       include: {
         user: { select: { id: true, name: true, email: true } },
         internship: { select: { title: true, duration: true } },
@@ -169,7 +255,7 @@ const createOrder = async (req, res, next) => {
       return res.json(ApiResponse.success(
         {
           paymentId: existingSuccessfulPayment.id,
-          internshipId,
+          internshipId: resolvedInternshipId,
           alreadyProcessed: true,
           accessGranted: true,
         },
@@ -179,11 +265,11 @@ const createOrder = async (req, res, next) => {
     }
 
     // Idempotency key: prevent duplicate orders for same request
-    const idempotencyKey = `${userId}_${internshipId}_${internship.price}`;
+    const idempotencyKey = `${userId}_${resolvedInternshipId}_${normalizedInternshipPrice}`;
     const existingPayment = await prisma.payment.findFirst({
       where: {
         userId,
-        internshipId,
+        internshipId: resolvedInternshipId,
         status: 'PENDING'
       }
     });
@@ -196,19 +282,19 @@ const createOrder = async (req, res, next) => {
       ));
     }
 
-    const amountInPaise = internship.price;
+    const amountInPaise = normalizedInternshipPrice;
     const options = {
       amount: amountInPaise,
       currency: 'INR',
       receipt: `rcpt_${Date.now()}_${userId.slice(0, 8)}`.substring(0, 40),
       notes: {
         userId,
-        internshipId,
+        internshipId: resolvedInternshipId,
         internshipTitle: internship.title
       }
     };
 
-    const order = await razorpay.orders.create(options);
+    const order = await paymentService.razorpay.orders.create(options);
 
     const payment = await prisma.payment.create({
       data: {
@@ -217,12 +303,12 @@ const createOrder = async (req, res, next) => {
         status: 'PENDING',
         razorpayOrderId: order.id,
         idempotencyKey,
-        internshipId,
+        internshipId: resolvedInternshipId,
       }
     });
 
     res.json(ApiResponse.success(
-      { orderId: order.id, paymentId: payment.id, amount },
+      { orderId: order.id, paymentId: payment.id, amount: amountInPaise / 100, internshipId: resolvedInternshipId },
       'Payment order created successfully',
       201
     ));
@@ -242,13 +328,15 @@ const verifyPaymentEndpoint = async (req, res, next) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, paymentId, internshipId } = req.validatedBody;
     const userId = req.user.id;
 
+    const paymentWhere = {
+      id: paymentId,
+      userId,
+      razorpayOrderId: razorpay_order_id,
+      ...(internshipId ? { internshipId } : {}),
+    };
+
     const payment = await prisma.payment.findFirst({
-      where: {
-        id: paymentId,
-        userId,
-        internshipId,
-        razorpayOrderId: razorpay_order_id,
-      },
+      where: paymentWhere,
       include: {
         user: { select: { id: true, name: true, email: true } },
         certificate: { include: { internship: true } },
@@ -260,7 +348,7 @@ const verifyPaymentEndpoint = async (req, res, next) => {
       return next(new ApiError('Payment record not found for this user', 404, 'PAYMENT_NOT_FOUND'));
     }
 
-    const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    const isValid = paymentService.verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
 
     if (!isValid) {
       await prisma.payment.update({
@@ -271,10 +359,10 @@ const verifyPaymentEndpoint = async (req, res, next) => {
       return next(new ApiError('Invalid payment signature', 400, 'INVALID_SIGNATURE'));
     }
 
-    if (razorpay && process.env.NODE_ENV !== 'test') {
+    if (paymentService.razorpay && process.env.NODE_ENV !== 'test') {
       const [paymentDetails, orderDetails] = await Promise.all([
-        fetchPaymentDetails(razorpay_payment_id),
-        fetchOrderDetails(razorpay_order_id),
+        paymentService.fetchPaymentDetails(razorpay_payment_id),
+        paymentService.fetchOrderDetails(razorpay_order_id),
       ]);
 
       if (!paymentDetails || !orderDetails) {
@@ -575,7 +663,7 @@ const verifyCertificate = async (req, res, next) => {
       where: { certificateId },
       include: {
         user: { select: { name: true, college: true } },
-        internship: { select: { title: true, domain: true } }
+        internship: { select: { title: true, domain: true, duration: true } }
       }
     });
 
@@ -631,6 +719,7 @@ const getPublicCertificateById = async (req, res, next) => {
         college: certificate.user.college,
         internship: certificate.internship.title,
         domain: certificate.internship.domain,
+        duration: certificate.internship.duration || '4 Weeks',
         issueDate: certificate.issuedDate,
         certificateId: certificate.certificateId,
       },
@@ -705,8 +794,8 @@ const razorpayWebhook = async (req, res, next) => {
       });
 
       if (payment) {
-        if (razorpay && process.env.NODE_ENV !== 'test') {
-          const paymentDetails = await fetchPaymentDetails(paymentId);
+        if (paymentService.razorpay && process.env.NODE_ENV !== 'test') {
+          const paymentDetails = await paymentService.fetchPaymentDetails(paymentId);
           if (!paymentDetails || paymentDetails.status !== 'captured') {
             return res.status(400).json(ApiResponse.error('Webhook payment not captured', 400, 'INVALID_PAYMENT_STATE'));
           }

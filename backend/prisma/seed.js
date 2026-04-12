@@ -92,7 +92,18 @@ async function main() {
     },
   });
 
-  console.log('✅ Created 4 internships');
+  const testInternship = await prisma.internship.create({
+    data: {
+      title: 'Test Internship',
+      domain: 'Payments',
+      duration: '1 Week',
+      level: 'Beginner Friendly',
+      price: 1000, // 10.00 INR
+      description: 'A safe low-value internship for verifying Razorpay payment flow end to end.',
+    },
+  });
+
+  console.log('✅ Created 5 internships');
 
   // Create tasks for Digital Marketing
   const dmTasks = await Promise.all([
@@ -241,6 +252,18 @@ async function main() {
         description: 'Wrap your trained model into a simple Flask/FastAPI endpoint that accepts input and returns predictions.',
         week: 4,
         resources: 'FastAPI documentation',
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.task.create({
+      data: {
+        internshipId: testInternship.id,
+        title: 'Payment Verification Check',
+        description: 'Complete a safe Razorpay payment to verify order creation, signature validation, and enrollment access.',
+        week: 1,
+        resources: 'Razorpay test card details, payment verification checklist',
       },
     }),
   ]);

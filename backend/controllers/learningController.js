@@ -3,30 +3,7 @@ const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
 const { generateCertificateId } = require('../utils/generateCertificateId');
-
-function groupTasksByWeek(tasks) {
-  const orderedWeeks = [...new Set(tasks.map((task) => task.week))].sort((a, b) => a - b);
-
-  return orderedWeeks.map((week) => {
-    const weekTasks = tasks.filter((task) => task.week === week);
-    const resources = [...new Set(weekTasks.flatMap((task) => {
-      if (!task.resources) return [];
-      return task.resources.split(',').map((item) => item.trim()).filter(Boolean);
-    }))];
-
-    return {
-      week,
-      title: `Week ${week}`,
-      description: weekTasks[0]?.description || 'Guided learning module',
-      resources,
-      tasks: weekTasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        description: task.description,
-      })),
-    };
-  });
-}
+const { buildCurriculumTasks, groupTasksByWeek } = require('../utils/internshipCurriculum');
 
 async function createOrReturnCertificate({ userId, internshipId }) {
   const finalSubmission = await prisma.finalProjectSubmission.findUnique({
@@ -110,7 +87,8 @@ const getLearningPlan = async (req, res, next) => {
       where: { userId_internshipId: { userId, internshipId } },
     });
 
-    const weeks = groupTasksByWeek(internship.tasks);
+    const sourceTasks = internship.tasks.length > 0 ? internship.tasks : buildCurriculumTasks(internship);
+    const weeks = groupTasksByWeek(sourceTasks);
     const totalWeeks = weeks.length || 0;
     const progress = finalSubmission ? 100 : totalWeeks > 0
       ? Math.min(100, Math.round((enrollment.completedWeeks / totalWeeks) * 100))
@@ -244,7 +222,8 @@ const submitProject = async (req, res, next) => {
       },
     });
 
-    const completedWeeks = Math.max(enrollment.completedWeeks || 0, internship.tasks.length ? [...new Set(internship.tasks.map((task) => task.week))].length : 0);
+    const taskWeeks = internship.tasks.length > 0 ? [...new Set(internship.tasks.map((task) => task.week))].length : buildCurriculumTasks(internship).length;
+    const completedWeeks = Math.max(enrollment.completedWeeks || 0, taskWeeks);
 
     await prisma.userInternship.update({
       where: { userId_internshipId: { userId, internshipId } },

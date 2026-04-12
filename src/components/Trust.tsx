@@ -35,21 +35,36 @@ export default function Trust() {
 
         {/* Main Trust Logos/Badges Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-14">
-          <div className="group relative lg:col-span-5 card p-8 md:p-10 overflow-hidden">
-            <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-brand via-brand-light to-transparent" />
+          <div className="group relative lg:col-span-5 rounded-[22px] border border-neutral-200 bg-white p-7 md:p-9 shadow-[0_12px_36px_rgba(15,23,42,0.06)] overflow-hidden">
+            <div className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-brand to-brand-light" />
 
-            <div className="relative z-10 flex items-start gap-5">
-              <div className="shrink-0 w-16 h-16 rounded-2xl bg-brand-surface text-brand flex items-center justify-center ring-1 ring-brand-border group-hover:scale-[1.02] transition-transform duration-500">
-                <GraduationCap className="w-8 h-8" />
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-brand mb-2">Founders</p>
+                  <h3 className="text-[30px] md:text-[34px] font-bold text-foreground leading-[1.02]">
+                    Built by IIT and NIT alumni.
+                  </h3>
+                </div>
+                <div className="shrink-0 w-14 h-14 rounded-xl border border-brand-border bg-brand-surface text-brand flex items-center justify-center">
+                  <GraduationCap className="w-7 h-7" />
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-brand mb-3">Founders</p>
-                <h3 className="text-[28px] md:text-[32px] font-bold text-foreground leading-[1.05] mb-3">
-                  Designed by IIT and NIT alumni.
-                </h3>
-                <p className="text-[15px] md:text-[16px] text-muted leading-relaxed max-w-[28rem]">
-                  Built by people who understand campus pressure, internships, and the gap between learning and execution.
-                </p>
+
+              <p className="text-[15px] md:text-[16px] text-muted leading-relaxed max-w-[34rem] mb-6">
+                Created by builders who have seen campus hiring first-hand and designed SkillBridge to convert effort into verifiable outcomes.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="px-3 py-1.5 rounded-full border border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-foreground">
+                  IIT / NIT Alumni Team
+                </span>
+                <span className="px-3 py-1.5 rounded-full border border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-foreground">
+                  Outcome-Focused Curriculum
+                </span>
+                <span className="px-3 py-1.5 rounded-full border border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-foreground">
+                  Industry-Aligned Projects
+                </span>
               </div>
             </div>
           </div>
@@ -93,32 +108,27 @@ export default function Trust() {
 
         </div>
 
-        {/* Extra Trust Elements Footer */}
-        <div className="flex flex-wrap flex-col md:flex-row items-center justify-center gap-x-10 gap-y-5 pt-8 border-t border-neutral-200">
+        {/* Extra Trust Elements Footer — Simplified for mobile */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8">
           
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-surface border border-brand-border flex items-center justify-center">
-              <Users className="w-4 h-4 text-brand" />
-            </div>
-            <span className="text-[14.5px] font-bold text-foreground">1000+ Students Enrolled</span>
+          <div className="text-center">
+            <p className="text-[24px] md:text-[32px] font-bold text-brand mb-1">10K+</p>
+            <span className="text-[13px] font-semibold text-foreground">Students Trusted</span>
           </div>
 
-          <div className="w-1 h-1 rounded-full bg-neutral-300 hidden md:block" />
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-surface border border-brand-border flex items-center justify-center">
-              <BookOpen className="w-4 h-4 text-brand" />
-            </div>
-            <span className="text-[14.5px] font-bold text-foreground">Industry Recognized Certifications</span>
+          <div className="text-center">
+            <p className="text-[24px] md:text-[32px] font-bold text-brand mb-1">98%</p>
+            <span className="text-[13px] font-semibold text-foreground">Completion Rate</span>
           </div>
 
-          <div className="w-1 h-1 rounded-full bg-neutral-300 hidden md:block" />
+          <div className="text-center">
+            <p className="text-[24px] md:text-[32px] font-bold text-brand mb-1">4.8★</p>
+            <span className="text-[13px] font-semibold text-foreground">Avg Rating</span>
+          </div>
 
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-surface border border-brand-border flex items-center justify-center">
-              <Briefcase className="w-4 h-4 text-brand" />
-            </div>
-            <span className="text-[14.5px] font-bold text-foreground">Real-world Project Experience</span>
+          <div className="text-center">
+            <p className="text-[24px] md:text-[32px] font-bold text-brand mb-1">2 Wks</p>
+            <span className="text-[13px] font-semibold text-foreground">Quick Start</span>
           </div>
 
         </div>

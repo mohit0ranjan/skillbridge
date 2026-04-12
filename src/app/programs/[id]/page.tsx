@@ -14,6 +14,81 @@ const iconMap: Record<string, any> = {
   Database: Database,
 };
 
+const PROJECTS_BY_ROLE: Record<string, { easy: string; medium: string }> = {
+  "Frontend Developer Internship": {
+    easy: "Responsive Portfolio Website",
+    medium: "Movie App (API-based with search & UI)",
+  },
+  "Full-Stack Developer Internship": {
+    easy: "Notes App (CRUD + Local DB)",
+    medium: "Auth-based Web App (Login + Dashboard)",
+  },
+  "AI Engineer Internship": {
+    easy: "AI Text / Notes Generator",
+    medium: "AI Resume Analyzer (Score + Feedback)",
+  },
+  "Data Scientist Internship": {
+    easy: "Basic Data Visualization Dashboard",
+    medium: "Customer Segmentation Project",
+  },
+  "Python Developer Internship": {
+    easy: "Task Automation Script (files/email)",
+    medium: "CLI Tool (Password Manager / Utility Tool)",
+  },
+  "UI/UX Designer Internship": {
+    easy: "Mobile App UI Design (Figma)",
+    medium: "Complete App Case Study (User Flow + Prototype)",
+  },
+  "Flutter Developer Internship": {
+    easy: "To-Do / Notes App",
+    medium: "API-based App (Weather / News App)",
+  },
+  "Android Developer Internship": {
+    easy: "Simple Utility App (Notes/Calculator)",
+    medium: "Firebase App (Login + Data Storage)",
+  },
+  "Java Developer Internship": {
+    easy: "Console-based Management System",
+    medium: "REST API using Spring Boot (Basic)",
+  },
+  "C++ Developer Internship": {
+    easy: "DSA Problem Solver Toolkit",
+    medium: "Mini Project (Bank System / File Manager)",
+  },
+  "Machine Learning Engineer Internship": {
+    easy: "Basic Classification Model",
+    medium: "ML Model with Visualization Dashboard",
+  },
+  "Backend Developer Internship": {
+    easy: "Authentication API (JWT Login)",
+    medium: "CRUD API with Database (Node/Express)",
+  },
+  "Data Analytics Internship": {
+    easy: "Excel/CSV Dashboard",
+    medium: "Interactive Dashboard with Filters",
+  },
+  "Power BI Data Analyst Internship": {
+    easy: "Sales Dashboard",
+    medium: "Business Insights Dashboard (KPIs + Trends)",
+  },
+  "Tableau Visionary Internship": {
+    easy: "Basic Visualization Dashboard",
+    medium: "Storytelling Dashboard (Insights + Flow)",
+  },
+  "Data Science with Python Internship": {
+    easy: "Data Cleaning + Analysis Project",
+    medium: "Prediction Model (Basic ML)",
+  },
+  "Data Science with R Master Internship": {
+    easy: "Data Visualization (R)",
+    medium: "Forecasting Model (Time Series)",
+  },
+  "Business Analytics with R Internship": {
+    easy: "Business Dashboard Report",
+    medium: "Decision Analytics Project",
+  },
+};
+
 type PageProps = {
   params: Promise<{ id: string }>;
 };
@@ -29,6 +104,10 @@ export default function InternshipDetailPage({ params }: PageProps) {
 
   const weeks = [...new Set(internship.weeklyTasks.map((t) => t.week))];
   const IconComponent = iconMap[internship.iconName] || Code2;
+  const projects = PROJECTS_BY_ROLE[internship.title] ?? {
+    easy: internship.weeklyTasks[0]?.title ?? "Beginner Project",
+    medium: internship.weeklyTasks[1]?.title ?? "Intermediate Project",
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -74,6 +153,17 @@ export default function InternshipDetailPage({ params }: PageProps) {
                   <p className="text-[15px] text-gray-600 leading-relaxed max-w-2xl">
                     {internship.description}
                   </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <p className="text-[13px] text-gray-400 line-through">₹{internship.originalPrice / 100}</p>
+                    <p className="text-[22px] font-bold text-gray-900">₹{internship.price / 100}</p>
+                    <span className="text-[11px] font-bold text-red-600">🔥 Limited Time Offer</span>
+                    <Link
+                      href={`/apply?internship=${internship.id}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#10b981] hover:bg-[#059669] text-white text-[13px] font-medium rounded-[6px] transition-colors"
+                    >
+                      Get Internship Now
+                    </Link>
+                  </div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-100">
@@ -84,8 +174,78 @@ export default function InternshipDetailPage({ params }: PageProps) {
                   <FileText className="w-4 h-4 text-gray-500" /> {internship.level}
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-gray-50 text-[13px] font-medium border border-gray-200 text-gray-700">
-                  <BadgeIndianRupee className="w-4 h-4 text-gray-500" /> Fee: ₹{internship.price / 100}
+                  <BadgeIndianRupee className="w-4 h-4 text-gray-500" /> Fee: ₹{internship.price / 100} (from ₹{internship.originalPrice / 100})
                 </span>
+              </div>
+            </div>
+
+            {/* Projects You Can Build */}
+            <div className="rounded-[12px] bg-white border border-gray-200 p-8">
+              <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight mb-6 pb-4 border-b border-gray-100">
+                Projects You Can Build
+              </h3>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-[8px] border border-green-200 bg-green-50">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-green-700 mb-1">
+                    Beginner Friendly
+                  </p>
+                  <p className="text-[14px] font-semibold text-gray-900">{projects.easy}</p>
+                </div>
+
+                <div className="p-4 rounded-[8px] border border-amber-200 bg-amber-50">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-amber-700 mb-1">
+                    Intermediate Level
+                  </p>
+                  <p className="text-[14px] font-semibold text-gray-900">{projects.medium}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-5 border-t border-gray-100 space-y-2">
+                <p className="text-[13px] font-semibold text-gray-800">No prior experience required</p>
+                <p className="text-[13px] font-semibold text-gray-800">Complete any 1 project to get certified</p>
+              </div>
+            </div>
+
+            {/* Learning Section */}
+            <div className="rounded-[12px] bg-white border border-gray-200 p-8">
+              <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight mb-6 pb-4 border-b border-gray-100">
+                Skills & Tools Covered
+              </h3>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {internship.tasks.map((item) => (
+                  <span key={item} className="px-3 py-1.5 rounded-[6px] bg-gray-50 border border-gray-200 text-[12px] font-medium text-gray-700">
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {internship.includes.map((item) => (
+                  <div key={item} className="flex items-center gap-2 text-[13px] text-gray-700">
+                    <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Process */}
+            <div className="rounded-[12px] bg-white border border-gray-200 p-8">
+              <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight mb-6 pb-4 border-b border-gray-100">
+                How It Works
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  "Enroll",
+                  "Build Project",
+                  "Submit",
+                  "Get Certificate",
+                ].map((step, idx) => (
+                  <div key={step} className="rounded-[8px] border border-gray-200 bg-gray-50 p-4">
+                    <p className="text-[11px] font-semibold text-gray-500 mb-1">Step {idx + 1}</p>
+                    <p className="text-[14px] font-semibold text-gray-900">{step}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -157,6 +317,20 @@ export default function InternshipDetailPage({ params }: PageProps) {
               <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight mb-6 pb-4 border-b border-gray-100">
                 Student Experiences
               </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+                <div className="rounded-[8px] border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-[11px] text-gray-500">Students</p>
+                  <p className="text-[18px] font-bold text-gray-900">10K+</p>
+                </div>
+                <div className="rounded-[8px] border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-[11px] text-gray-500">Rating</p>
+                  <p className="text-[18px] font-bold text-gray-900">4.8/5</p>
+                </div>
+                <div className="rounded-[8px] border border-gray-200 bg-gray-50 p-3 col-span-2 md:col-span-1">
+                  <p className="text-[11px] text-gray-500">Certificate</p>
+                  <p className="text-[14px] font-semibold text-gray-900">SB-VERIFIED</p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {reviews.slice(0, 2).map((r, i) => (
                   <div key={i} className="p-5 rounded-[8px] bg-gray-50 border border-gray-200">
@@ -176,6 +350,19 @@ export default function InternshipDetailPage({ params }: PageProps) {
                 ))}
               </div>
             </div>
+
+            {/* Final CTA */}
+            <div className="rounded-[12px] bg-white border border-gray-200 p-8 text-center">
+              <p className="text-[18px] font-semibold text-gray-900 mb-2">Ready to start building?</p>
+              <p className="text-[14px] text-gray-600 mb-5">No prior experience required. Complete any 1 project to get certified.</p>
+              <Link
+                href={`/apply?internship=${internship.id}`}
+                className="inline-flex items-center justify-center gap-2 py-3 px-6 bg-[#10b981] hover:bg-[#059669] text-white font-medium rounded-[8px] transition-colors text-[14px]"
+              >
+                Start Internship for ₹{internship.price / 100}
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
 
           {/* Right sticky sidebar */}
@@ -184,7 +371,9 @@ export default function InternshipDetailPage({ params }: PageProps) {
               <p className="text-[12px] text-gray-500 uppercase tracking-widest font-semibold mb-2">Program Investment</p>
               <div className="flex items-baseline gap-2 mb-2">
                 <p className="text-[36px] font-semibold text-gray-900 tracking-tight">₹{internship.price / 100}</p>
+                  <p className="text-[14px] text-gray-400 line-through">₹{internship.originalPrice / 100}</p>
               </div>
+                <p className="text-[12px] font-bold text-red-600 mb-2">🔥 Limited Time Offer</p>
               <p className="text-[13px] text-gray-600 mb-6">One-time payment. Inclusive of taxes.</p>
 
               <div className="space-y-4 mb-8 pt-6 border-t border-gray-100">
@@ -200,7 +389,7 @@ export default function InternshipDetailPage({ params }: PageProps) {
                 href={`/apply?internship=${internship.id}`}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-[#10b981] hover:bg-[#059669] text-white font-medium rounded-[6px] transition-colors text-[14px]"
               >
-                Enroll Now
+                Get Internship Now
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

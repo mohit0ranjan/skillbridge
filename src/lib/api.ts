@@ -1,4 +1,16 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const resolveApiBase = () => {
+  const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  if (configured) return configured;
+
+  // Keep localhost fallback for local development only.
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:5000';
+  }
+
+  return '';
+};
+
+export const API_BASE = resolveApiBase();
 
 class ApiClient {
   private baseUrl: string;
@@ -13,6 +25,10 @@ class ApiClient {
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    if (!this.baseUrl) {
+      throw new ApiError('API base URL is not configured. Set NEXT_PUBLIC_API_URL.', 500);
+    }
+
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -106,6 +122,10 @@ class ApiClient {
     return this.request<DashboardData>('/dashboard');
   }
 
+  async getMyInternships() {
+    return this.request<any[]>('/my-internships');
+  }
+
   async getAdminDashboard() {
     return this.request<AdminDashboardData>('/admin/dashboard');
   }
@@ -194,8 +214,20 @@ class ApiClient {
   }
 
   // Payments
-  async createOrder(amount: number, certificateId?: string, internshipId?: string) {
-    return this.request<OrderResponse>('/create-order', { method: 'POST', body: JSON.stringify({ amount, certificateId, internshipId }) });
+  async createOrder(amount: number, certificateId?: string, internshipId?: string, internshipMeta?: InternshipOrderMeta) {
+    return this.request<OrderResponse>('/create-order', {
+      method: 'POST',
+      body: JSON.stringify({
+        amount,
+        certificateId,
+        internshipId,
+        internshipTitle: internshipMeta?.title,
+        internshipDomain: internshipMeta?.domain,
+        internshipDuration: internshipMeta?.duration,
+        internshipLevel: internshipMeta?.level,
+        internshipDescription: internshipMeta?.description,
+      })
+    });
   }
 
   async verifyPayment(body: PaymentVerification) {
@@ -368,6 +400,15 @@ export type OrderResponse = {
   orderId: string;
   paymentId: string;
   amount: number;
+  internshipId?: string;
+};
+
+export type InternshipOrderMeta = {
+  title: string;
+  domain: string;
+  duration: string;
+  level: string;
+  description?: string;
 };
 
 export type PaymentVerification = {
@@ -375,13 +416,13 @@ export type PaymentVerification = {
   razorpay_payment_id: string;
   razorpay_signature: string;
   paymentId: string;
-  internshipId: string;
+  internshipId?: string;
 };
 
 export type PaymentFailurePayload = {
   razorpay_order_id: string;
   paymentId: string;
-  internshipId: string;
+  internshipId?: string;
   reason?: string;
   certificateId?: string;
 };

@@ -1,33 +1,27 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Send, FileCheck, ListChecks, Award, ArrowRight } from "lucide-react";
+import { Send, ListChecks, Award, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 const STEPS = [
   {
     icon: Send,
-    title: "Choose a program",
+    title: "Choose Program",
     desc: "Pick a domain that matches your interest and current skill level.",
     num: "01",
   },
   {
-    icon: FileCheck,
-    title: "Start immediately",
-    desc: "Join quickly and get your first task without a long wait.",
+    icon: ListChecks,
+    title: "Complete Tasks",
+    desc: "Do small, focused work that builds confidence and real skills.",
     num: "02",
   },
   {
-    icon: ListChecks,
-    title: "Complete simple tasks",
-    desc: "Do small, focused work that builds confidence and consistency.",
-    num: "03",
-  },
-  {
     icon: Award,
-    title: "Get verified proof",
-    desc: "Finish the program and receive a certificate you can share.",
-    num: "04",
+    title: "Get Certificate",
+    desc: "Finish the program and receive a verified certificate to share.",
+    num: "03",
   },
 ];
 
@@ -58,7 +52,7 @@ export default function HowItWorks() {
           {/* Connecting line */}
           <div className="hidden lg:block absolute top-[56px] left-[15%] right-[15%] h-px bg-gradient-to-r from-green-200 via-green-300 to-green-200" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-6">
             {STEPS.map((step, i) => (
               <motion.div
                 key={step.title}
