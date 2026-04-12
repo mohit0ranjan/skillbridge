@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { ApiResponse, ApiError } = require('./utils/apiResponse');
+const prisma = require('./prisma');
 
 const authRoutes = require('./routes/auth');
 const internshipRoutes = require('./routes/internships');
@@ -35,8 +36,20 @@ app.use((req, res, next) => {
 });
 
 // CORS — restrict to frontend origin in production
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map(o => o.trim().replace(/\/$/, '')); // Removes trailing slash if added accidentally
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, server-to-server) or matching origins
+    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+      callback(null, true);
+    } else {
+      console.warn(`Blocked by CORS: origin ${origin} not in allowed list [${allowedOrigins}]`);
+      callback(null, false);
+    }
+  },
   credentials: true,
 }));
 
@@ -63,7 +76,7 @@ const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    if (req.path === '/health') return true;
+    if (req.path === '/health' || req.path === '/') return true;
 
     // These are read-only dashboard/data endpoints that can be hit frequently
     // during development and page hydration. Keep them available so UI loads
@@ -112,19 +125,43 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// WEBHOOK ROUTE (needs raw body)
-// ============================================
-
-// ============================================
-// API ROUTES
+// HEALTH & ROOT ENDPOINTS
 // ============================================
 
 /**
- * Health Check
+ * Health Check — includes DB connectivity test for Azure monitoring
  */
-app.get('/health', (req, res) => {
-  const response = ApiResponse.success({ status: 'ok' });
-  res.json(response);
+app.get('/health', async (req, res) => {
+  const dbOk = await prisma.testConnection();
+  const status = dbOk ? 'ok' : 'degraded';
+  const httpCode = dbOk ? 200 : 503;
+
+  res.status(httpCode).json(ApiResponse.success({
+    status,
+    uptime: Math.floor(process.uptime()),
+    database: dbOk ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  }));
+});
+
+/**
+ * Root endpoint
+ */
+app.get('/', (req, res) => {
+  res.json(ApiResponse.success({
+    status: 'ok',
+    service: 'SkillBridge API',
+    version: '1.0.0',
+    health: '/health',
+    docs: '/api/docs',
+  }));
+});
+
+/**
+ * Favicon (avoid noisy 404 logs for browser auto-requests)
+ */
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
 });
 
 /**
@@ -143,13 +180,13 @@ app.get('/api/docs', (req, res) => {
     },
     docs: 'See README.md for full documentation',
   };
-  const response = ApiResponse.success(docs);
-  res.json(response);
+  res.json(ApiResponse.success(docs));
 });
 
-/**
- * Routes
- */
+// ============================================
+// API ROUTES
+// ============================================
+
 app.use('/auth', authLimiter, authRoutes);
 app.use('/internships', internshipRoutes);
 app.use('/', userRoutes);
@@ -228,11 +265,13 @@ app.use((err, req, res, next) => {
 // ============================================
 
 const PORT = process.env.PORT || 5000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || 'production';
 let server;
 
+// Azure runs `node app.js` directly → require.main === module is TRUE.
+// Tests do `require('./app')` → require.main !== module, so listen is skipped.
 if (require.main === module) {
-  server = app.listen(PORT, () => {
+  server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔════════════════════════════════════════╗
 ║     🚀 SkillBridge API Server 🚀      ║
@@ -241,12 +280,21 @@ if (require.main === module) {
 ║  Port: ${PORT.toString().padEnd(33)} ║
 ║  Status: ✅ Running                   ║
 ╚════════════════════════════════════════╝
-  `);
-    console.log(`📍 API: http://localhost:${PORT}`);
-    console.log(`📍 Health: http://localhost:${PORT}/health`);
-    console.log(`📍 Docs: http://localhost:${PORT}/api/docs`);
+    `);
+    console.log(`📍 API: http://0.0.0.0:${PORT}`);
+    console.log(`📍 Health: http://0.0.0.0:${PORT}/health`);
+    console.log(`📍 Docs: http://0.0.0.0:${PORT}/api/docs`);
+
+    // Non-blocking DB connection test logged after startup
+    if (typeof prisma.testConnection === 'function') {
+      prisma.testConnection().catch(() => {});
+    }
   });
 }
+
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
 
 function shutdown(signal) {
   console.log(`\n${signal} received. Starting graceful shutdown...`);
@@ -256,13 +304,23 @@ function shutdown(signal) {
     return;
   }
 
-  // Stop accepting new requests and allow in-flight requests to finish.
-  server.close((err) => {
+  server.close(async (err) => {
     if (err) {
       console.error('Error during server shutdown:', err);
       process.exit(1);
       return;
     }
+
+    // Disconnect Prisma pool
+    try {
+      if (typeof prisma.disconnect === 'function') {
+        await prisma.disconnect();
+        console.log('Database pool closed.');
+      }
+    } catch (e) {
+      console.error('Error closing database pool:', e.message);
+    }
+
     console.log('HTTP server closed cleanly.');
     process.exit(0);
   });
@@ -281,4 +339,11 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+process.on('uncaughtException', (err) => {
+  console.error('🔴 Uncaught Exception:', err);
+  // Give time for logs to flush before exiting
+  setTimeout(() => process.exit(1), 1000).unref();
+});
+
 module.exports = app;
+
