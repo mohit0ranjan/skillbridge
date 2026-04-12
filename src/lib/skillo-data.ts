@@ -477,7 +477,7 @@ export const internships: Internship[] = [
   },
   {
     id: "test-internship",
-    title: "🧪 Test Internship (₹10 Only)",
+    title: "Test Internship (₹10 Only)",
     projectTitle: "Verify Payment Flow",
     domain: "Payments",
     duration: "1 Week",

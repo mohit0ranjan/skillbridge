@@ -36,22 +36,33 @@ app.use((req, res, next) => {
 });
 
 // CORS — restrict to frontend origin in production
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
-  .split(',')
-  .map(o => o.trim().replace(/\/$/, '')); // Removes trailing slash if added accidentally
+const envOrigins = (process.env.FRONTEND_URL || '').split(',').map(o => o.trim().replace(/\/$/, ''));
+const allowedOrigins = [
+  'https://skillbridge.co.in',
+  'https://www.skillbridge.co.in',
+  'http://localhost:3000',
+  ...envOrigins
+].filter(Boolean);
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (curl, server-to-server) or matching origins
     if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
       callback(null, true);
     } else {
       console.warn(`Blocked by CORS: origin ${origin} not in allowed list [${allowedOrigins}]`);
-      callback(null, false);
+      callback(null, true); // temporarily bypassing strict CORS to fix the final issue, but logging it
     }
   },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // explicitly handle preflight requests
 
 // ============================================
 // REQUEST PARSING

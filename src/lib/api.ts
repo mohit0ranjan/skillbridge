@@ -1,5 +1,5 @@
 const resolveApiBase = () => {
-  const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
   if (configured) return configured;
 
   // Keep localhost fallback for local development only.

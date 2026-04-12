@@ -11,7 +11,7 @@ type PageProps = {
 
 async function getRealCertificate(id: string) {
   try {
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, '');
     if (!apiBase) return null;
 
     const res = await fetch(`${apiBase}/api/certificate/${id}`, { cache: "no-store" });
@@ -52,7 +52,7 @@ export default async function CertificateViewPage({ params }: PageProps) {
     );
   }
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, '');
   const downloadPdfUrl = `${apiBase}/api/certificate/${certificate.certificateId}/pdf`;
   const issueDate = new Date(certificate.issueDate).toLocaleDateString("en-IN", {
     day: "numeric",

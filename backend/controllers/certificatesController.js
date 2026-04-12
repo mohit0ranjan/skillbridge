@@ -300,7 +300,7 @@ const createOrder = async (req, res, next) => {
       notes: {
         userId,
         internshipId: resolvedInternshipId,
-        internshipTitle: internship.title
+        internshipTitle: Buffer.from((internship.title || '').substring(0, 200), 'utf8').toString('utf8').replace(/[^\x20-\x7F]/g, '')
       }
     };
 

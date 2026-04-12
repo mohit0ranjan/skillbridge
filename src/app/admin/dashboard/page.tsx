@@ -41,7 +41,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminDashboardPage() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, '');
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
   const [overview, setOverview] = useState<any>(null);
   const [submissions, setSubmissions] = useState<any[]>([]);
