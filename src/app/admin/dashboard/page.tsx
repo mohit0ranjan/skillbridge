@@ -41,7 +41,6 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminDashboardPage() {
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, '');
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
   const [overview, setOverview] = useState<any>(null);
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -457,7 +456,7 @@ export default function AdminDashboardPage() {
                                 <Link href={certificate.viewUrl} className="btn-secondary btn-sm gap-2">
                                   <BadgeCheck className="h-4 w-4" /> View
                                 </Link>
-                                <a href={`${apiBase}${certificate.downloadUrl}`} target="_blank" rel="noreferrer" className="btn-primary btn-sm gap-2">
+                                <a href={certificate.downloadUrl} target="_blank" rel="noreferrer" className="btn-primary btn-sm gap-2">
                                   <Download className="h-4 w-4" /> Download
                                 </a>
                               </div>

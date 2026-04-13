@@ -628,8 +628,8 @@ const generateCertificate = async (req, res, next) => {
 };
 
 /**
- * Generate Secure PDF Certificate
- * Publicly verifiable endpoint 
+ * Legacy PDF endpoint (deprecated)
+ * Redirects to the unified frontend certificate view so preview/download share one source.
  */
 const downloadPdf = async (req, res, next) => {
   try {
@@ -647,20 +647,13 @@ const downloadPdf = async (req, res, next) => {
       return next(new ApiError('Certificate not found', 404, 'CERTIFICATE_NOT_FOUND'));
     }
 
-    const { generateCertificatePdf } = require('../utils/pdfGenerator');
-    
-    const pdfBuffer = await generateCertificatePdf({
-      studentName: certificate.user.name,
-      internship: certificate.internship.title,
-      issueDate: certificate.issuedDate,
-      certificateId: certificate.certificateId
-    });
+    const frontendBase = (process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '');
+    const certificatePath = `/certificate/${encodeURIComponent(certificate.certificateId)}`;
+    const redirectUrl = frontendBase ? `${frontendBase}${certificatePath}` : certificatePath;
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=SkillBridge-Certificate-${certificate.certificateId}.pdf`);
-    res.end(pdfBuffer);
+    return res.redirect(302, redirectUrl);
   } catch (error) {
-    next(new ApiError(`PDF generation failed: ${error.message}`, 500, 'PDF_FAILED'));
+    next(new ApiError(`Certificate redirect failed: ${error.message}`, 500, 'REDIRECT_FAILED'));
   }
 };
 
@@ -703,7 +696,7 @@ const downloadCertificate = async (req, res, next) => {
         college: certificate.user.college,
         program: certificate.internship.title,
         issuedDate: certificate.issuedDate,
-        downloadUrl: `/api/certificates/${certificate.id}/pdf`
+        downloadUrl: `/certificate/${certificate.certificateId}`
       },
       'Certificate data retrieved successfully',
       200

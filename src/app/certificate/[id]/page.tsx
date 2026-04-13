@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BadgeCheck, Download } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import CertificatePdfDownloadButton from "@/components/CertificatePdfDownloadButton";
 import styles from "./certificate.module.css";
 import Image from "next/image";
 
@@ -52,8 +53,6 @@ export default async function CertificateViewPage({ params }: PageProps) {
     );
   }
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, '');
-  const downloadPdfUrl = `${apiBase}/api/certificate/${certificate.certificateId}/pdf`;
   const issueDate = new Date(certificate.issueDate).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
@@ -67,7 +66,7 @@ export default async function CertificateViewPage({ params }: PageProps) {
       <main className="max-w-[1560px] mx-auto px-6 pt-28 pb-16 md:pt-32 md:pb-20">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_392px] gap-10 items-start">
           <section className={styles.certificateFrameWrap}>
-            <div className={styles.certificate}>
+            <div id="certificate" className={styles.certificate}>
               <div className={styles.borderAccent} />
 
               <div className={styles.certificateId}>Certificate ID: {certificate.certificateId}</div>
@@ -160,15 +159,7 @@ export default async function CertificateViewPage({ params }: PageProps) {
                 <p className="mt-1 text-sm font-mono font-semibold text-gray-900 break-words leading-snug">{certificate.certificateId}</p>
               </div>
 
-              <a
-                href={downloadPdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full rounded-2xl bg-[#10b981] px-5 py-4 text-sm text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#059669] transition-colors cursor-pointer shadow-[0_12px_20px_rgba(16,185,129,0.24)]"
-              >
-                <Download className="w-4 h-4" />
-                Download PDF
-              </a>
+              <CertificatePdfDownloadButton certificateId={certificate.certificateId} />
 
               <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-4 py-4">
                 <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400 font-semibold">Need another check?</p>

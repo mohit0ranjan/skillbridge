@@ -268,7 +268,7 @@ const getCertificates = async (req, res, next) => {
         issuedDate: certificate.issuedDate,
         isPaid: certificate.isPaid,
         viewUrl: `/certificate/${certificate.certificateId}`,
-        downloadUrl: `/certificate/${certificate.certificateId}/pdf`,
+        downloadUrl: `/certificate/${certificate.certificateId}`,
       })),
       'Certificates retrieved successfully',
       200,
