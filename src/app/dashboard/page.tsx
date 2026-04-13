@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, CheckCircle2, Loader2, RefreshCw, Sparkles, Target, ShieldCheck, Download } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowRight, BadgeCheck, CheckCircle2, Loader2, RefreshCw, Sparkles, Target, ShieldCheck, Download, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import { api } from "@/lib/api";
+
+const TELEGRAM_GROUP_URL = "https://t.me/+BViSoZ01fwc1ZDE1";
+const TELEGRAM_POPUP_SEEN_KEY = "telegramCommunityPopupSeen";
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -31,6 +34,14 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [openWeek, setOpenWeek] = useState<number | null>(null);
   const [busyWeek, setBusyWeek] = useState<number | null>(null);
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+
+  const dismissTelegramModal = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(TELEGRAM_POPUP_SEEN_KEY, "true");
+    }
+    setShowTelegramModal(false);
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -51,6 +62,19 @@ export default function DashboardPage() {
     }
 
     fetchDashboard();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const alreadySeen = window.localStorage.getItem(TELEGRAM_POPUP_SEEN_KEY) === "true";
+    if (alreadySeen) return;
+
+    const timer = window.setTimeout(() => {
+      setShowTelegramModal(true);
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const enrollment = data?.enrollments?.[0] || null;
@@ -101,6 +125,75 @@ export default function DashboardPage() {
       title={enrollment ? `Overview` : "Welcome back"}
       actions={headerActions}
     >
+      <AnimatePresence>
+        {showTelegramModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={dismissTelegramModal}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="telegram-community-title"
+              className="relative w-full max-w-xl rounded-2xl border border-emerald-100 bg-white p-5 shadow-2xl sm:p-7"
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={dismissTelegramModal}
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Close popup"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              <div className="mb-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Community Invite
+              </div>
+              <h3 id="telegram-community-title" className="text-2xl font-bold tracking-tight text-gray-900">
+                🚀 Join Our Community!
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">
+                Connect with other learners, get updates, ask doubts, and grow together. Join our Telegram group now!
+              </p>
+
+              <ul className="mt-4 space-y-2 rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
+                <li>✔ Discuss internships & projects</li>
+                <li>✔ Get instant updates</li>
+                <li>✔ Network with peers</li>
+              </ul>
+
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={dismissTelegramModal}
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Maybe Later
+                </button>
+                <a
+                  href={TELEGRAM_GROUP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={dismissTelegramModal}
+                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:bg-emerald-500"
+                >
+                  Join Telegram Group
+                </a>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {loading ? (
         <div className="flex h-64 items-center justify-center dash-card">
           <Loader2 className="h-6 w-6 animate-spin text-green-600" />
@@ -290,6 +383,19 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 )}
+              </div>
+
+              <div className="dash-card">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Need Support?</p>
+                <p className="text-sm text-gray-500 mb-4">Join our Telegram community for quick updates and peer discussion.</p>
+                <a
+                  href={TELEGRAM_GROUP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary w-full text-center text-sm py-2"
+                >
+                  Join Telegram Group
+                </a>
               </div>
 
             </div>
