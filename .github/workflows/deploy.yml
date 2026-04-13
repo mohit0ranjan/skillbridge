@@ -24,9 +24,11 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        env:
+          NODE_ENV: development
 
-      - name: Build app
-        run: npm run build --if-present
+      - name: Build app (generate Prisma client)
+        run: npm run build
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
