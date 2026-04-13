@@ -62,7 +62,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // explicitly handle preflight requests
+// app.use(cors(...)) already handles preflight OPTIONS responses.
 
 // ============================================
 // REQUEST PARSING

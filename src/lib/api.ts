@@ -14,6 +14,7 @@ export const API_BASE = resolveApiBase();
 
 class ApiClient {
   private baseUrl: string;
+  private readonly requestTimeoutMs = 15000;
 
   constructor() {
     this.baseUrl = API_BASE;
@@ -39,10 +40,26 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
+    const timeoutController = options.signal ? null : new AbortController();
+    const timeoutId = timeoutController
+      ? setTimeout(() => timeoutController.abort(), this.requestTimeoutMs)
+      : null;
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers,
+        signal: options.signal || timeoutController?.signal,
+      });
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new ApiError('Request timed out. Please try again.', 408);
+      }
+      throw new ApiError('Unable to reach server. Please check your network and try again.', 0);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
 
     const contentType = response.headers.get('content-type') || '';
     const rawBody = await response.text();
