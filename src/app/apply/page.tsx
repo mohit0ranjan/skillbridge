@@ -99,9 +99,10 @@ function ApplyPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, signup } = useAuth();
+  const selectableInternships = useMemo(() => internships.filter((item) => item.id !== "test-internship"), []);
 
   const [step, setStep] = useState(1);
-  const [selectedId, setSelectedId] = useState(internships[0].id);
+  const [selectedId, setSelectedId] = useState(selectableInternships[0]?.id ?? internships[0].id);
   const [backendInternships, setBackendInternships] = useState<BackendInternship[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -118,10 +119,10 @@ function ApplyPageInner() {
 
   useEffect(() => {
     const selectedFromUrl = searchParams.get("internship");
-    if (selectedFromUrl && internships.some((item) => item.id === selectedFromUrl)) {
+    if (selectedFromUrl && selectableInternships.some((item) => item.id === selectedFromUrl)) {
       setSelectedId(selectedFromUrl);
     }
-  }, [searchParams]);
+  }, [searchParams, selectableInternships]);
 
   useEffect(() => {
     let isMounted = true;
@@ -143,12 +144,15 @@ function ApplyPageInner() {
     };
   }, []);
 
-  const internship = useMemo(() => internships.find((i) => i.id === selectedId) ?? internships[0], [selectedId]);
+  const internship = useMemo(
+    () => selectableInternships.find((i) => i.id === selectedId) ?? selectableInternships[0] ?? internships[0],
+    [selectedId, selectableInternships]
+  );
 
   const filteredInternships = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return internships.filter((item) => {
+    return selectableInternships.filter((item) => {
       const category = getInternshipCategory(item.domain);
       const categoryMatch = activeCategory === "All" || category === activeCategory;
       const searchMatch =
@@ -158,7 +162,7 @@ function ApplyPageInner() {
 
       return categoryMatch && searchMatch;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, selectableInternships]);
 
   useEffect(() => {
     if (!filteredInternships.length) return;
