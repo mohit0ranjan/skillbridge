@@ -33,6 +33,7 @@ export default function ProgramsPage() {
   const [search, setSearch] = useState("");
 
   const filtered = internships.filter((i) => {
+    if (i.id === "test-internship") return false;
     if (
       search &&
       !i.title.toLowerCase().includes(search.toLowerCase()) &&
