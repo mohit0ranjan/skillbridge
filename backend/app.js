@@ -51,7 +51,7 @@ const corsOptions = {
       callback(null, true);
     } else {
       console.warn(`Blocked by CORS: origin ${origin} not in allowed list [${allowedOrigins}]`);
-      callback(null, true); // temporarily bypassing strict CORS to fix the final issue, but logging it
+      callback(null, false);
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -69,7 +69,7 @@ app.options('*', cors(corsOptions)); // explicitly handle preflight requests
 // ============================================
 
 // Razorpay webhook needs the raw body before JSON parsing consumes the stream.
-app.use('/razorpay-webhook', express.raw({ type: 'application/json' }));
+app.use(['/razorpay-webhook', '/webhooks/razorpay'], express.raw({ type: 'application/json' }));
 
 // Body parsing with size limits
 app.use(express.json({ limit: '10kb' }));
