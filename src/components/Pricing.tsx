@@ -70,7 +70,7 @@ export default function Pricing() {
           {/* Right Column - Features */}
           <div className="p-8 sm:p-10 lg:w-1/2 bg-neutral-50/80">
             <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-brand-dark mb-6">
-              What's included
+              What&apos;s included
             </h4>
             
             <ul className="space-y-4">

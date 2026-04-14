@@ -355,7 +355,7 @@ function ApplyPageInner() {
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div className="max-w-[800px] mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/programs" aria-label="Go back to programs" className="w-8 h-8 rounded border border-gray-200 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#10b981] flex items-center justify-center text-gray-500 transition-colors">
+            <Link href="/programs" aria-label="Go back to programs" className="w-11 h-11 rounded border border-gray-200 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#10b981] flex items-center justify-center text-gray-500 transition-colors">
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <h1 className="text-[14px] font-semibold text-gray-900">Enroll in a Program</h1>
@@ -426,7 +426,7 @@ function ApplyPageInner() {
                         key={tab}
                         type="button"
                         onClick={() => setActiveCategory(tab)}
-                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${
+                        className={`whitespace-nowrap min-h-10 px-3 py-2 rounded-full text-[12px] font-semibold border transition-colors ${
                           isActive
                             ? "border-[#10b981] bg-[#ecfdf5] text-[#047857]"
                             : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
@@ -649,7 +649,7 @@ function ApplyPageInner() {
             <button
               type="button"
               onClick={next}
-              className="shrink-0 px-4 py-2 rounded-[8px] bg-[#10b981] hover:bg-[#059669] text-white text-[12px] md:text-[13px] font-semibold transition-colors"
+              className="shrink-0 min-h-11 px-4 py-2.5 rounded-[8px] bg-[#10b981] hover:bg-[#059669] text-white text-[12px] md:text-[13px] font-semibold transition-colors"
             >
               Continue to Payment ₹{internship.price / 100}
             </button>

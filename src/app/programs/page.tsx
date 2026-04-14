@@ -51,7 +51,7 @@ export default function ProgramsPage() {
     <div className="min-h-screen font-sans">
       <Navbar />
 
-      <main className="max-w-[1100px] mx-auto px-6 pt-28 pb-24 md:pt-32 md:pb-20">
+      <main className="max-w-[1100px] mx-auto px-4 sm:px-6 pt-28 pb-24 md:pt-32 md:pb-20">
         <div className="mb-10 max-w-2xl">
           <div className="section-label">Programs</div>
           <h1 className="text-[32px] md:text-[40px] font-bold text-gray-900 tracking-tight leading-[1.1] mb-4">
@@ -64,8 +64,8 @@ export default function ProgramsPage() {
         </div>
 
         {/* Search & Filters */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
-          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white flex-1 max-w-[340px] focus-within:border-green-500 transition-colors shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-4 mb-8">
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white w-full sm:flex-1 sm:max-w-[340px] focus-within:border-green-500 transition-colors shadow-sm">
             <Search className="w-4 h-4 text-gray-400 shrink-0" />
             <input
               type="text"
@@ -75,13 +75,13 @@ export default function ProgramsPage() {
               className="flex-1 bg-transparent text-[13px] text-gray-900 placeholder:text-gray-400 outline-none"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <SlidersHorizontal className="w-4 h-4 text-gray-400 mr-2" />
             {FILTERS.map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors border cursor-pointer ${
+                className={`min-h-10 px-3.5 py-2 rounded-lg text-[12px] font-medium transition-colors border cursor-pointer ${
                   filter === f
                     ? "bg-green-600 text-white border-green-600"
                     : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"

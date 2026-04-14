@@ -126,7 +126,7 @@ export default function DashboardPage() {
             Start your learning journey
           </h2>
           <p className="text-gray-500 mb-8 max-w-md mx-auto">
-            You don't have any active enrollments. Browse our programs and join one to access your workspace.
+            You don&apos;t have any active enrollments. Browse our programs and join one to access your workspace.
           </p>
           <Link href="/apply" className="btn-primary">
             Explore Programs

@@ -144,7 +144,7 @@ export default function Navbar() {
           </Link>
           <button
             onClick={() => setOpen(!open)}
-            className="md:hidden w-9 h-9 rounded-xl border border-neutral-200 bg-background text-foreground flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+            className="md:hidden w-11 h-11 rounded-xl border border-neutral-200 bg-background text-foreground flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
             aria-label="Toggle menu"
           >
             {open ? (

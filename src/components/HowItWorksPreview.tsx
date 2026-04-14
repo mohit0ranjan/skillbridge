@@ -16,7 +16,7 @@ export default function HowItWorksPreview() {
     <section className="py-14 md:py-20 px-4 sm:px-6 bg-[#fafaf8] relative overflow-hidden" id="how-it-works-preview">
       {/* Subtle Premium Background */}
       <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-neutral-200 to-transparent" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[300px] bg-brand/5 blur-[100px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] sm:w-[800px] h-[260px] sm:h-[300px] bg-brand/5 blur-[100px] rounded-full pointer-events-none" />
 
       <div className="max-w-[1000px] mx-auto relative z-10">
         
@@ -49,7 +49,7 @@ export default function HowItWorksPreview() {
           </div>
           
           {/* Mobile Animated Connecting Line */}
-          <div className="md:hidden absolute left-[31px] top-[40px] bottom-[40px] w-[2px] bg-neutral-200/50 z-0 overflow-hidden">
+          <div className="md:hidden absolute left-8 top-8 bottom-8 w-[2px] bg-neutral-200/50 z-0 overflow-hidden">
              <motion.div 
                 initial={{ y: "-100%" }}
                 whileInView={{ y: "0%" }}
@@ -78,9 +78,9 @@ export default function HowItWorksPreview() {
                   </div>
                 </div>
                 
-                <div className="mt-1 md:mt-2">
+                <div className="mt-1 md:mt-2 min-w-0">
                   <h3 className="text-[16px] md:text-[17px] font-bold text-foreground leading-tight group-hover:text-brand transition-colors duration-300">{step.title}</h3>
-                  <p className="text-[13px] md:text-[14px] text-muted font-medium mt-1 md:mt-1.5 leading-relaxed max-w-[200px]">{step.desc}</p>
+                  <p className="text-[13px] md:text-[14px] text-muted font-medium mt-1 md:mt-1.5 leading-relaxed max-w-[200px] md:max-w-none">{step.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -95,12 +95,12 @@ export default function HowItWorksPreview() {
           transition={{ delay: 0.5, duration: 0.6 }}
           className="mt-12 md:mt-16 text-center flex flex-col items-center justify-center gap-3 relative z-10"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-brand opacity-60" />
+          <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+            <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-brand opacity-60" />
             <span className="text-[13px] font-bold text-muted tracking-wide uppercase">
               Real projects. No theory-heavy learning.
             </span>
-            <div className="w-1.5 h-1.5 rounded-full bg-brand opacity-60" />
+            <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-brand opacity-60" />
           </div>
           
           <Link href="/how-it-works" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white border border-neutral-200 shadow-sm text-[14px] font-bold text-brand hover:text-white hover:bg-brand hover:border-brand transition-all duration-300 group mt-2">

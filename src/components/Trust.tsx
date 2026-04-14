@@ -72,11 +72,11 @@ export default function Trust() {
           <div className="group relative lg:col-span-4 card p-8 md:p-10 overflow-hidden">
             <div className="relative z-10 mb-7">
               <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-brand mb-4">Recognized</p>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
                 <div className="flex items-center justify-center rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 py-3">
                   <Image src="/msme logo.png" alt="MSME Logo" width={84} height={46} className="h-11 w-auto object-contain" unoptimized />
                 </div>
-                <div className="h-10 w-px bg-neutral-200" />
+                <div className="hidden sm:block h-10 w-px bg-neutral-200" />
                 <div className="flex items-center justify-center rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 py-3">
                   <Image src="/skill india logo.png" alt="Skill India Logo" width={96} height={46} className="h-11 w-auto object-contain" unoptimized />
                 </div>

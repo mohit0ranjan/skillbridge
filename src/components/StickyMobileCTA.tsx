@@ -27,7 +27,7 @@ export default function StickyMobileCTA() {
         <motion.div whileTap={{ scale: 0.95 }} className="shrink-0">
           <Link
             href="/apply"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-green-600 text-[13px] font-bold rounded-lg shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap"
+            className="inline-flex min-h-11 items-center gap-1.5 px-4 py-2.5 bg-white text-green-600 text-[13px] font-bold rounded-lg shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap"
           >
             Begin Now
             <ArrowRight className="w-4 h-4" strokeWidth={3} />

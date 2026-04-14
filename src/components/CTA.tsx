@@ -6,12 +6,12 @@ import { ArrowRight } from "lucide-react";
 
 export default function CTA() {
   return (
-    <section className="py-20 px-6">
+    <section className="py-20 px-4 sm:px-6">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="max-w-[1100px] mx-auto rounded-2xl px-8 py-14 md:px-12 md:py-14 relative overflow-hidden"
+        className="max-w-[1100px] mx-auto rounded-2xl px-5 py-12 sm:px-8 sm:py-14 md:px-12 md:py-14 relative overflow-hidden"
         style={{
           background:
             "linear-gradient(135deg, #0f3d35 0%, #14532d 50%, #0f3d35 100%)",
@@ -49,7 +49,7 @@ export default function CTA() {
           <div className="text-center md:text-right">
             <Link
               href="/apply"
-              className="btn-primary group"
+              className="btn-primary group min-h-11"
             >
               Start Internship — ₹99
               <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-1 transition-transform" />

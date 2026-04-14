@@ -120,7 +120,7 @@ export default function AppShell({ variant, title, subtitle, actions, children }
               </Link>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
+                className="md:hidden inline-flex h-11 w-11 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
                 aria-label="Close navigation"
               >
                 <X className="h-4 w-4" />
@@ -144,7 +144,7 @@ export default function AppShell({ variant, title, subtitle, actions, children }
                       key={item.label}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "bg-green-50 text-green-700 border border-green-100" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}
+                      className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "bg-green-50 text-green-700 border border-green-100" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}
                     >
                       <item.icon className={`h-4 w-4 ${active ? "text-green-600" : "text-gray-400"}`} />
                       <span>{item.label}</span>
@@ -197,7 +197,7 @@ export default function AppShell({ variant, title, subtitle, actions, children }
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileOpen(true)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 md:hidden"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 md:hidden"
                   aria-label="Open navigation"
                 >
                   <Menu className="h-4 w-4" />

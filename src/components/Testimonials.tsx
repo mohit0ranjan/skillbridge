@@ -99,7 +99,7 @@ export default function Testimonials() {
           transition={{ delay: 0.4, duration: 0.6 }}
           className="mt-14 md:mt-20 flex justify-center relative z-10"
         >
-           <div className="flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-brand-surface border border-brand-border/60">
+           <div className="flex flex-wrap items-center justify-center gap-2.5 px-5 py-2.5 rounded-full bg-brand-surface border border-brand-border/60 text-center">
               <ShieldCheck className="w-5 h-5 text-brand" />
               <span className="text-[14px] md:text-[15px] font-bold text-brand-dark">
                 Focused on real work, not just certificates.

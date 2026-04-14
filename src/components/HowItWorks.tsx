@@ -109,7 +109,7 @@ export default function HowItWorks({ shortMode = false }: { shortMode?: boolean 
               />
             </div>
             {/* Mobile Vertical Line */}
-            <div className="md:hidden absolute left-[31px] top-[40px] bottom-[40px] w-[2px] bg-neutral-100 z-0 overflow-hidden">
+            <div className="md:hidden absolute left-8 top-8 bottom-8 w-[2px] bg-neutral-100 z-0 overflow-hidden">
               <motion.div 
                 initial={{ y: "-100%" }}
                 whileInView={{ y: "0%" }}
@@ -135,7 +135,7 @@ export default function HowItWorks({ shortMode = false }: { shortMode?: boolean 
               transition={{ duration: 0.6 }}
               className="py-12 md:py-20 relative z-20"
             >
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-6 md:gap-14 rounded-full bg-white border border-neutral-200/60 py-4 px-8 md:py-5 md:px-10 shadow-[0_8px_30px_rgba(0,0,0,0.04)] max-w-max mx-auto relative overflow-hidden group">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6 md:gap-14 rounded-3xl sm:rounded-full bg-white border border-neutral-200/60 py-4 px-6 md:py-5 md:px-10 shadow-[0_8px_30px_rgba(0,0,0,0.04)] w-full max-w-[860px] mx-auto relative overflow-hidden group">
                 <style>{`
                   @keyframes shimmer {
                     100% { transform: translateX(100%); }
@@ -147,14 +147,14 @@ export default function HowItWorks({ shortMode = false }: { shortMode?: boolean 
                   <div className="w-8 h-8 rounded-full bg-brand-surface border border-brand/20 flex items-center justify-center text-brand">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
-                  <span className="text-[14px] md:text-[15px] font-bold text-foreground tracking-wide">Real-world projects, not theory</span>
+                  <span className="text-[14px] md:text-[15px] font-bold text-foreground tracking-wide text-center sm:text-left">Real-world projects, not theory</span>
                 </div>
                 <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-neutral-200 relative z-10" />
                 <div className="flex items-center gap-3 relative z-10">
                   <div className="w-8 h-8 rounded-full bg-brand-surface border border-brand/20 flex items-center justify-center text-brand">
                     <Briefcase className="w-4 h-4" />
                   </div>
-                  <span className="text-[14px] md:text-[15px] font-bold text-foreground tracking-wide">Work that you can actually show</span>
+                  <span className="text-[14px] md:text-[15px] font-bold text-foreground tracking-wide text-center sm:text-left">Work that you can actually show</span>
                 </div>
               </div>
             </motion.div>
@@ -174,7 +174,7 @@ export default function HowItWorks({ shortMode = false }: { shortMode?: boolean 
                 />
               </div>
               {/* Mobile Vertical Line */}
-              <div className="md:hidden absolute left-[31px] top-[40px] bottom-[40px] w-[2px] bg-neutral-100 z-0 overflow-hidden">
+              <div className="md:hidden absolute left-8 top-8 bottom-8 w-[2px] bg-neutral-100 z-0 overflow-hidden">
                 <motion.div 
                   initial={{ y: "-100%" }}
                   whileInView={{ y: "0%" }}
@@ -264,7 +264,7 @@ export default function HowItWorks({ shortMode = false }: { shortMode?: boolean 
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1.5 transition-transform" />
             </span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1 bg-brand-surface text-brand-dark text-[13px] font-bold rounded-full">
               <div className="w-2 h-2 rounded-full bg-brand animate-pulse" />
               Limited seats

@@ -45,20 +45,23 @@ function VerifyContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex flex-col">
-      <header className="bg-white border-b border-gray-200 flex h-[60px] items-center px-6 sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 flex h-[60px] items-center px-4 sm:px-6 sticky top-0 z-40">
         <div className="max-w-[800px] mx-auto w-full flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <span className="w-7 h-7 rounded bg-gray-900 flex items-center justify-center text-white text-[13px] font-bold">S</span>
             <span className="text-[16px] font-semibold text-gray-900 tracking-tight">SkillBridge</span>
           </Link>
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-[4px] bg-gray-50 border border-gray-200">
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-[4px] bg-gray-50 border border-gray-200">
             <ShieldCheck className="w-3.5 h-3.5 text-gray-500" />
             <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Verification Portal</span>
+          </div>
+          <div className="sm:hidden inline-flex h-9 w-9 items-center justify-center rounded-[6px] bg-gray-50 border border-gray-200">
+            <ShieldCheck className="w-4 h-4 text-gray-500" />
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-[800px] mx-auto w-full px-6 py-12 md:py-20 flex flex-col items-center">
+      <main className="flex-1 max-w-[800px] mx-auto w-full px-4 sm:px-6 py-12 md:py-20 flex flex-col items-center">
         <div className="text-center mb-10 w-full max-w-[480px]">
           <h1 className="text-[28px] md:text-[32px] font-semibold text-gray-900 tracking-tight mb-3">Verify Certificate</h1>
           <p className="text-[14px] text-gray-500 leading-relaxed">
@@ -125,17 +128,17 @@ function VerifyContent() {
                       </div>
 
                       <div className="space-y-3 mb-8">
-                        <div className="flex justify-between items-center bg-gray-50 p-3 rounded-[6px] border border-gray-200">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-2 bg-gray-50 p-3 rounded-[6px] border border-gray-200">
                            <span className="text-[12px] text-gray-500 flex items-center gap-2"><Award className="w-4 h-4" /> Program</span>
                            <span className="text-[13px] font-semibold text-gray-900">{result.internship}</span>
                         </div>
-                        <div className="flex justify-between items-center bg-gray-50 p-3 rounded-[6px] border border-gray-200">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-2 bg-gray-50 p-3 rounded-[6px] border border-gray-200">
                            <span className="text-[12px] text-gray-500 flex items-center gap-2"><Calendar className="w-4 h-4" /> Date Issued</span>
                            <span className="text-[13px] font-medium text-gray-900">{new Date(result.issueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</span>
                         </div>
-                        <div className="flex justify-between items-center bg-gray-50 p-3 rounded-[6px] border border-gray-200">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-2 bg-gray-50 p-3 rounded-[6px] border border-gray-200">
                            <span className="text-[12px] text-gray-500 flex items-center gap-2"><Link2 className="w-4 h-4" /> Certificate ID</span>
-                           <span className="text-[13px] font-mono font-semibold text-gray-900">{result.certificateId}</span>
+                          <span className="text-[13px] font-mono font-semibold text-gray-900 break-all">{result.certificateId}</span>
                         </div>
                       </div>
 

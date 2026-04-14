@@ -97,7 +97,7 @@ export default function AboutPage() {
                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-[260px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {PROOF_POINTS.slice(0, 4).map((point) => (
                     <div key={point.label} className="rounded-[20px] bg-white border border-gray-100 px-5 py-5 shadow-sm flex flex-col justify-center">
                       <div className="text-[24px] font-extrabold text-gray-900 leading-none mb-1.5">{point.value}</div>
