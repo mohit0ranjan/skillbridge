@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body className={`${inter.variable} font-sans`}>
+      <body className={`${inter.variable} font-sans relative`}>
         <Providers>{children}</Providers>
       </body>
     </html>

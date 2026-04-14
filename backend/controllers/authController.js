@@ -1,6 +1,6 @@
 const bcrypt = require('bcrypt');
 const prisma = require('../prisma');
-const { generateToken, generateResetToken, generateVerificationToken, verifyToken } = require('../utils/jwt');
+const { generateToken, generateResetToken, verifyToken } = require('../utils/jwt');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
@@ -49,14 +49,10 @@ const signup = async (req, res, next) => {
 
     // Generate JWT token
     const token = generateToken(user.id);
-    const verificationToken = generateVerificationToken(user.id);
-    const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify?token=${verificationToken}`;
-
     // Send onboarding email (non-blocking). Enrollment email is triggered only after paid enrollment.
     emailService.sendOnboardingWelcome({
       userEmail: user.email,
       userName: user.name,
-      verifyLink,
     }).catch(err => console.error('Email send error:', err.message));
 
     // Return response

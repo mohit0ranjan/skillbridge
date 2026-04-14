@@ -60,7 +60,7 @@ class EmailService {
   /**
    * Send onboarding email right after account creation.
    */
-  async sendOnboardingWelcome({ userEmail, userName, verifyLink }) {
+  async sendOnboardingWelcome({ userEmail, userName }) {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #111827 0%, #1f2937 100%); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
@@ -72,15 +72,7 @@ class EmailService {
             Your account has been created successfully. You can now explore internships and start your journey.
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            Before you begin, please verify your email address.
-          </p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verifyLink}" style="display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              Verify Email
-            </a>
-          </div>
-          <p style="font-size: 13px; color: #6b7280; margin-top: 18px;">
-            This verification link expires in 24 hours.
+            Your account is ready. Log in anytime to continue your onboarding and start learning.
           </p>
         </div>
       </div>
@@ -88,7 +80,7 @@ class EmailService {
 
     return this.send({
       to: userEmail,
-      subject: 'Welcome to SkillBridge - Verify your email',
+      subject: 'Welcome to SkillBridge - Account Created',
       html,
     });
   }
