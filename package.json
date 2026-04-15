@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "prisma generate --schema=backend/prisma/schema.prisma"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
+    "nodemailer": "^8.0.5",
+    "pdfkit": "^0.18.0",
+    "prisma": "^5.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "^3.5.0"
