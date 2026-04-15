@@ -229,6 +229,8 @@ apiRouter.use('/', ticketRoutes);
 apiRouter.use('/admin', readOnlyLimiter, adminRoutes);
 
 app.use('/api/v1', apiRouter);
+// Backward compatibility: allow legacy clients that call unversioned routes (e.g. /auth/login).
+app.use('/', apiRouter);
 
 // ============================================
 // ERROR HANDLING

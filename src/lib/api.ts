@@ -19,10 +19,27 @@ export const API_BASE = resolveApiBase();
 
 class ApiClient {
   private baseUrl: string;
+  private triedLegacyBaseFallback = false;
   private readonly requestTimeoutMs = 15000;
 
   constructor() {
     this.baseUrl = API_BASE;
+  }
+
+  private getLegacyBaseUrl(): string {
+    if (this.baseUrl.endsWith('/api/v1')) {
+      return this.baseUrl.slice(0, -'/api/v1'.length) || '/';
+    }
+    return this.baseUrl;
+  }
+
+  private shouldFallbackToLegacyBase(response: Response, json: any): boolean {
+    if (this.triedLegacyBaseFallback) return false;
+    if (!this.baseUrl.endsWith('/api/v1')) return false;
+    if (response.status !== 404) return false;
+
+    const message = String(json?.message || '').toLowerCase();
+    return message.includes('route') && message.includes('/api/v1');
   }
 
   private getToken(): string | null {
@@ -89,6 +106,12 @@ class ApiClient {
     }
 
     if (!response.ok) {
+      if (this.shouldFallbackToLegacyBase(response, json)) {
+        this.triedLegacyBaseFallback = true;
+        this.baseUrl = this.getLegacyBaseUrl();
+        return this.request<T>(path, options);
+      }
+
       if (response.status === 401) {
         const rawMessage = String(json?.message || '').toLowerCase();
         const isTokenFailure = rawMessage.includes('token')
