@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import { BadgeCheck, CheckCircle2, Download, Loader2, MessageSquare, RefreshCw, Search, Sparkles, Users, FileText, LifeBuoy } from "lucide-react";
+import { ArrowRight, BadgeCheck, CheckCircle2, Download, Loader2, Mail, MessageSquare, RefreshCw, Search, Send, Sparkles, Users, FileText, LifeBuoy, Upload } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { api } from "@/lib/api";
 
-type TabValue = "overview" | "submissions" | "users" | "certificates" | "tickets";
+type TabValue = "overview" | "submissions" | "users" | "certificates" | "tickets" | "emails";
 
 const hashToTab: Record<string, TabValue> = {
   "#overview": "overview",
@@ -14,7 +14,37 @@ const hashToTab: Record<string, TabValue> = {
   "#users": "users",
   "#certificates": "certificates",
   "#tickets": "tickets",
+  "#emails": "emails",
 };
+
+type ScreeningLead = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  college: string;
+  year: string;
+  branch: string;
+  status: string;
+  test_submitted: boolean;
+  test_score: number | null;
+  selection_mail_sent: boolean;
+  payment_mail_sent: boolean;
+  offer_sent: boolean;
+  onboarding_sent: boolean;
+  certificate_issued: boolean;
+  converted: boolean;
+  created_at: string;
+};
+
+type EmailStage = "selection" | "payment" | "offer" | "onboarding";
+
+const EMAIL_STAGES: { key: EmailStage; label: string; dbField: keyof ScreeningLead; color: string }[] = [
+  { key: "selection", label: "Selection", dbField: "selection_mail_sent", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  { key: "payment", label: "Payment", dbField: "payment_mail_sent", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  { key: "offer", label: "Offer", dbField: "offer_sent", color: "text-purple-700 bg-purple-50 border-purple-200" },
+  { key: "onboarding", label: "Onboarding", dbField: "onboarding_sent", color: "text-green-700 bg-green-50 border-green-200" },
+];
 
 function MetricCard({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return (
@@ -57,7 +87,11 @@ export default function AdminDashboardPage() {
   const [replySuccess, setReplySuccess] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [screeningLeads, setScreeningLeads] = useState<ScreeningLead[]>([]);
   const [busy, setBusy] = useState(false);
+  const [emailSending, setEmailSending] = useState<string | null>(null);
+  const [emailFilter, setEmailFilter] = useState<"all" | "pending" | "sent">("all");
+  const [emailSearch, setEmailSearch] = useState("");
 
   const activateTab = (tab: TabValue) => {
     setActiveTab(tab);
@@ -80,11 +114,92 @@ export default function AdminDashboardPage() {
     return () => window.removeEventListener("hashchange", syncFromHash);
   }, []);
 
+  const loadScreeningLeads = useCallback(async () => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
+      if (!token) return;
+      console.log("[FETCH LEADS] /api/admin/screening-leads");
+      const response = await fetch("/api/admin/screening-leads", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const payload = await response.json() as { success?: boolean; data?: ScreeningLead[] };
+      if (!response.ok) {
+        throw new Error("Failed to fetch leads");
+      }
+      if (payload.success && Array.isArray(payload.data)) {
+        setScreeningLeads(payload.data);
+      }
+    } catch (leadError) {
+      console.error("[API ERROR] [FETCH LEADS]", leadError);
+      /* screening data is non-critical */
+    }
+  }, []);
+
+  const screeningMetrics = useMemo(() => {
+    if (screeningLeads.length === 0) return null;
+    return {
+      totalApplied: screeningLeads.length,
+      testCompleted: screeningLeads.filter((l) => l.test_submitted).length,
+      underReview: screeningLeads.filter((l) => l.status === "under_review").length,
+      selected: screeningLeads.filter((l) => l.status === "selected").length,
+      converted: screeningLeads.filter((l) => l.converted || l.status === "converted").length,
+    };
+  }, [screeningLeads]);
+
+  const emailMetrics = useMemo(() => {
+    return {
+      selectionSent: screeningLeads.filter((l) => l.selection_mail_sent).length,
+      paymentSent: screeningLeads.filter((l) => l.payment_mail_sent).length,
+      offerSent: screeningLeads.filter((l) => l.offer_sent).length,
+      onboardingSent: screeningLeads.filter((l) => l.onboarding_sent).length,
+      certificateIssued: screeningLeads.filter((l) => l.certificate_issued).length,
+    };
+  }, [screeningLeads]);
+
+  const filteredEmailLeads = useMemo(() => {
+    const q = emailSearch.trim().toLowerCase();
+    return screeningLeads
+      .filter((l) => l.test_submitted) // only show leads who completed the test
+      .filter((l) => {
+        if (emailFilter === "pending") return !l.selection_mail_sent || !l.payment_mail_sent || !l.offer_sent || !l.onboarding_sent;
+        if (emailFilter === "sent") return l.selection_mail_sent && l.payment_mail_sent && l.offer_sent && l.onboarding_sent;
+        return true;
+      })
+      .filter((l) => !q || l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q));
+  }, [screeningLeads, emailFilter, emailSearch]);
+
+  const sendEmail = useCallback(async (lead: ScreeningLead, type: EmailStage) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
+    if (!token) return;
+    const sendKey = `${lead.email}-${type}`;
+    try {
+      setEmailSending(sendKey);
+      setError("");
+      const body: Record<string, string> = { email: lead.email, name: lead.name, type };
+      if (type === "payment") body.paymentLink = "https://rzp.io/rzp/skillbridge";
+      if (type === "payment") body.deadline = "Within 24 Hours";
+      if (type === "onboarding") body.whatsappLink = "https://chat.whatsapp.com/skillbridge";
+      const response = await fetch("/api/admin/send-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json() as { success?: boolean; message?: string };
+      if (!response.ok || !result.success) throw new Error(result.message || "Send failed");
+      await loadScreeningLeads();
+    } catch (err: any) {
+      setError(err?.message || "Failed to send email.");
+    } finally {
+      setEmailSending(null);
+    }
+  }, [loadScreeningLeads]);
+
   const loadAll = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-      const [overviewData, submissionsData, ticketsData, internshipsData, certificatesData] = await Promise.all([
+      const results = await Promise.allSettled([
         api.getAdminDashboard(),
         api.getAdminSubmissions(),
         api.getAdminTickets(ticketFilter),
@@ -92,17 +207,28 @@ export default function AdminDashboardPage() {
         api.getAdminCertificates(),
       ]);
 
-      setOverview(overviewData);
-      setSubmissions(submissionsData || []);
-      setTickets(ticketsData || []);
-      setInternships(Array.isArray(internshipsData) ? internshipsData : []);
-      setCertificates(Array.isArray(certificatesData) ? certificatesData : []);
-    } catch {
-      setError("Unable to load the admin dashboard.");
+      await loadScreeningLeads();
+
+      const [overviewResult, submissionsResult, ticketsResult, internshipsResult, certificatesResult] = results;
+
+      if (overviewResult.status === "fulfilled") setOverview(overviewResult.value);
+      if (submissionsResult.status === "fulfilled") setSubmissions(submissionsResult.value || []);
+      if (ticketsResult.status === "fulfilled") setTickets(ticketsResult.value || []);
+      if (internshipsResult.status === "fulfilled") setInternships(Array.isArray(internshipsResult.value) ? internshipsResult.value : []);
+      if (certificatesResult.status === "fulfilled") setCertificates(Array.isArray(certificatesResult.value) ? certificatesResult.value : []);
+
+      const failed = results.filter((item) => item.status === "rejected") as PromiseRejectedResult[];
+      if (failed.length > 0) {
+        console.error("[API ERROR] [ADMIN DASHBOARD loadAll]", failed.map((f) => f.reason));
+        setError("Some dashboard sections failed to load. Retry to refresh all data.");
+      }
+    } catch (loadError: any) {
+      console.error("[API ERROR] [ADMIN DASHBOARD loadAll]", loadError);
+      setError(loadError?.message || "Unable to load the admin dashboard.");
     } finally {
       setLoading(false);
     }
-  }, [ticketFilter]);
+  }, [ticketFilter, loadScreeningLeads]);
 
   useEffect(() => {
     loadAll();
@@ -219,9 +345,17 @@ export default function AdminDashboardPage() {
       variant="admin"
       title="Command Center"
       actions={
-        <button onClick={loadAll} className="btn-secondary btn-sm gap-2 hidden md:inline-flex" disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh Data
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/users" className="btn-secondary btn-sm gap-2 hidden sm:inline-flex">
+            Users <Users className="h-4 w-4" />
+          </Link>
+          <Link href="/admin/upload-emails" className="btn-secondary btn-sm gap-2 hidden sm:inline-flex">
+            Upload Emails <Upload className="h-4 w-4" />
+          </Link>
+          <button onClick={loadAll} className="btn-secondary btn-sm gap-2 hidden md:inline-flex" disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh Data
+          </button>
+        </div>
       }
     >
       {loading && !overview ? (
@@ -244,6 +378,45 @@ export default function AdminDashboardPage() {
             <MetricCard label="Pending" value={overview?.submissions?.pending ?? 0} hint="submissions" />
             <MetricCard label="Revenue" value={`₹${overview?.revenue?.total ?? 0}`} hint={`${overview?.certificates?.paid ?? 0} certificates`} />
           </div>
+
+          {/* ─── Screening Funnel Quick View ─── */}
+          {screeningMetrics && (
+            <div className="dash-card p-5 sm:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                    <Sparkles className="h-3.5 w-3.5" /> Screening Funnel
+                  </p>
+                  <h2 className="mt-3 text-lg font-bold tracking-tight text-gray-900">Screening Pipeline</h2>
+                </div>
+                <Link href="/admin/screening-leads" className="btn-primary btn-sm gap-2">
+                  View All Leads <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="dash-inner bg-white text-center py-4">
+                  <p className="text-2xl font-black text-gray-900">{screeningMetrics.totalApplied}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Applied</p>
+                </div>
+                <div className="dash-inner bg-white text-center py-4">
+                  <p className="text-2xl font-black text-gray-900">{screeningMetrics.testCompleted}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Test Done</p>
+                </div>
+                <div className="dash-inner bg-white text-center py-4">
+                  <p className="text-2xl font-black text-amber-700">{screeningMetrics.underReview}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Under Review</p>
+                </div>
+                <div className="dash-inner bg-white text-center py-4">
+                  <p className="text-2xl font-black text-green-700">{screeningMetrics.selected}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Selected</p>
+                </div>
+                <div className="dash-inner bg-white text-center py-4">
+                  <p className="text-2xl font-black text-emerald-700">{screeningMetrics.converted}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Converted</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="dash-card p-6 lg:p-8 space-y-6">
             <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-gray-50/70 p-2">
@@ -277,6 +450,12 @@ export default function AdminDashboardPage() {
                 className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'tickets' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
               >
                 <LifeBuoy className="h-4 w-4" /> Support Tickets
+              </button>
+              <button 
+                onClick={() => activateTab("emails")} 
+                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'emails' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+              >
+                <Mail className="h-4 w-4" /> Email Pipeline
               </button>
             </div>
 
@@ -611,6 +790,92 @@ export default function AdminDashboardPage() {
                       ))
                     )}
                   </div>
+                </div>
+              )}
+
+              {activeTab === "emails" && (
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
+                    <div>
+                      <h2 className="text-2xl font-bold tracking-tight text-gray-900">Email Pipeline Operations</h2>
+                      <p className="mt-2 text-sm text-gray-500 max-w-2xl">
+                        Dispatch core funnel emails manually. Emails are only available to candidates who have completed their screening test.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="bg-gray-50/80 rounded-xl border border-gray-200/60 p-1 flex items-center">
+                        <button onClick={() => setEmailFilter("all")} className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${emailFilter === 'all' ? 'bg-white text-gray-900 shadow-sm border border-gray-200/50' : 'text-gray-600 hover:text-gray-900'}`}>All</button>
+                        <button onClick={() => setEmailFilter("pending")} className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${emailFilter === 'pending' ? 'bg-white text-gray-900 shadow-sm border border-gray-200/50' : 'text-gray-600 hover:text-gray-900'}`}>Pending Action</button>
+                        <button onClick={() => setEmailFilter("sent")} className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${emailFilter === 'sent' ? 'bg-white text-gray-900 shadow-sm border border-gray-200/50' : 'text-gray-600 hover:text-gray-900'}`}>Completed</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-6 relative max-w-lg">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search candidates by name or email..."
+                      value={emailSearch}
+                      onChange={(e) => setEmailSearch(e.target.value)}
+                      className="input-base pl-10"
+                    />
+                  </div>
+
+                  {filteredEmailLeads.length === 0 ? (
+                    <div className="text-center py-16 px-4 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
+                      <Mail className="mx-auto h-8 w-8 text-gray-400" />
+                      <h3 className="mt-4 text-sm font-semibold text-gray-900">No candidates match your criteria.</h3>
+                      <p className="mt-1 text-sm text-gray-500">Note: Only candidates who have completed the test appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border justify-center border-gray-200">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Candidate</th>
+                            {EMAIL_STAGES.map((s) => (
+                              <th key={s.key} scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{s.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {filteredEmailLeads.map((lead) => (
+                            <tr key={lead.id} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-bold text-gray-900">{lead.name}</div>
+                                <div className="text-xs text-gray-500">{lead.email}</div>
+                              </td>
+                              {EMAIL_STAGES.map((stage) => {
+                                const isSent = lead[stage.dbField];
+                                const sendKey = `${lead.email}-${stage.key}`;
+                                const isSending = emailSending === sendKey;
+                                
+                                return (
+                                  <td key={stage.key} className="px-6 py-4 whitespace-nowrap">
+                                    {isSent ? (
+                                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${stage.color}`}>
+                                        <CheckCircle2 className="h-4 w-4" /> Sent
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => sendEmail(lead, stage.key)}
+                                        disabled={emailSending !== null}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400 hover:text-gray-900 shadow-sm transition-all disabled:opacity-50"
+                                      >
+                                        {isSending ? <Loader2 className="h-3 w-3 animate-spin text-gray-500" /> : <Send className="h-3 w-3 text-gray-400" />}
+                                        Send
+                                      </button>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 

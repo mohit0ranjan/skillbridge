@@ -23,6 +23,7 @@ jest.mock('../../services/email.service', () => ({
 const prisma = require('../../prisma');
 const emailService = require('../../services/email.service');
 const app = require('../../app');
+const apiPath = (path) => `/api/v1${path}`;
 
 describe('Auth API Integration', () => {
   beforeEach(() => {
@@ -42,7 +43,7 @@ describe('Auth API Integration', () => {
       });
 
       const response = await request(app)
-        .post('/auth/signup')
+        .post(apiPath('/auth/signup'))
         .send({
           name: 'John Doe',
           email: 'john@example.com',
@@ -66,7 +67,7 @@ describe('Auth API Integration', () => {
       });
 
       const response = await request(app)
-        .post('/auth/signup')
+        .post(apiPath('/auth/signup'))
         .send({
           name: 'John Doe',
           email: 'john@example.com',
@@ -91,7 +92,7 @@ describe('Auth API Integration', () => {
       });
 
       const response = await request(app)
-        .post('/auth/login')
+        .post(apiPath('/auth/login'))
         .send({ email: 'john@example.com', password: 'ValidPass123!' });
 
       expect(response.status).toBe(200);
@@ -108,7 +109,7 @@ describe('Auth API Integration', () => {
       });
 
       const response = await request(app)
-        .post('/auth/login')
+        .post(apiPath('/auth/login'))
         .send({ email: 'john@example.com', password: 'WrongPass123!' });
 
       expect(response.status).toBe(401);
@@ -122,7 +123,7 @@ describe('Auth API Integration', () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
       const response = await request(app)
-        .post('/auth/request-password-reset')
+        .post(apiPath('/auth/request-password-reset'))
         .send({ email: 'missing@example.com' });
 
       expect(response.status).toBe(200);
@@ -135,7 +136,7 @@ describe('Auth API Integration', () => {
   describe('POST /auth/reset-password', () => {
     it('rejects invalid token', async () => {
       const response = await request(app)
-        .post('/auth/reset-password')
+        .post(apiPath('/auth/reset-password'))
         .send({
           token: 'invalid-token',
           newPassword: 'ValidPass123!',
@@ -162,7 +163,7 @@ describe('Auth API Integration', () => {
       prisma.user.update.mockResolvedValue({ id: '550e8400-e29b-41d4-a716-446655440555' });
 
       const response = await request(app)
-        .post('/auth/reset-password')
+        .post(apiPath('/auth/reset-password'))
         .send({ token, newPassword: 'ValidPass123!' });
 
       expect(response.status).toBe(200);

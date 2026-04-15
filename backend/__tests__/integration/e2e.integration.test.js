@@ -68,6 +68,7 @@ jest.mock('../../services/email.service', () => ({
 const prisma = require('../../prisma');
 const app = require('../../app');
 const emailService = require('../../services/email.service');
+const apiPath = (path) => `/api/v1${path}`;
 
 describe('E2E Pipeline Integration', () => {
   let userToken;
@@ -116,7 +117,7 @@ describe('E2E Pipeline Integration', () => {
       .digest('hex');
 
     const res = await request(app)
-      .post('/razorpay-webhook')
+      .post(apiPath('/razorpay-webhook'))
       .set('Content-Type', 'application/json')
       .set('x-razorpay-signature', signature)
       .send(rawWebhookBody);
@@ -149,7 +150,7 @@ describe('E2E Pipeline Integration', () => {
       .digest('hex');
 
     const res = await request(app)
-      .post('/verify-payment')
+      .post(apiPath('/verify-payment'))
       .set('Authorization', `Bearer ${userToken}`)
       .send({
         razorpay_order_id: orderId,
@@ -182,7 +183,7 @@ describe('E2E Pipeline Integration', () => {
     prisma.user.findUnique.mockResolvedValue({ id: userId, name: 'Student', email: 'student@test.com' });
 
     const res = await request(app)
-      .post('/submit-project')
+      .post(apiPath('/submit-project'))
       .set('Authorization', `Bearer ${userToken}`)
       .send({
         internshipId,
@@ -207,7 +208,7 @@ describe('E2E Pipeline Integration', () => {
     prisma.certificate.count.mockResolvedValue(3);
 
     const res = await request(app)
-      .get('/admin/dashboard')
+      .get(apiPath('/admin/dashboard'))
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
@@ -243,7 +244,7 @@ describe('E2E Pipeline Integration', () => {
     prisma.internship.findUnique.mockResolvedValue({ title: 'Backend' });
 
     const res = await request(app)
-      .patch(`/admin/final-submission/${submissionId}`)
+      .patch(apiPath(`/admin/final-submission/${submissionId}`))
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ status: 'APPROVED', feedback: 'Great job!' });
 
@@ -262,9 +263,9 @@ describe('E2E Pipeline Integration', () => {
     });
 
     const res = await request(app)
-      .get(`/certificate/${certificateId}/pdf`);
+      .get(apiPath(`/certificate/${certificateId}/pdf`));
 
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain(`/certificate/${encodeURIComponent(certificateId)}`);
   });
 });

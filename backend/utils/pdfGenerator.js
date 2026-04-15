@@ -1,4 +1,5 @@
-const PDFDocument = require('pdfkit');
+const PDFKitModule = require('pdfkit');
+const PDFDocument = PDFKitModule?.default || PDFKitModule;
 const path = require('path');
 const fs = require('fs');
 

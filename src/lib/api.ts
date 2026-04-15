@@ -1,13 +1,18 @@
 const resolveApiBase = () => {
+  let base = '';
   const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-  if (configured) return configured;
-
-  // Keep localhost fallback for local development only.
-  if (process.env.NODE_ENV !== 'production') {
-    return 'http://localhost:5000';
+  
+  if (configured) {
+    base = configured;
+  } else if (process.env.NODE_ENV !== 'production') {
+    base = 'http://localhost:5000';
   }
 
-  return '';
+  // Ensure /api/v1 suffix
+  if (base && !base.endsWith('/api/v1')) {
+    return `${base}/api/v1`;
+  }
+  return base || '/api/v1';
 };
 
 export const API_BASE = resolveApiBase();
@@ -84,13 +89,20 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      if (response.status === 401 && typeof window !== 'undefined') {
-        localStorage.removeItem('sb_token');
-        localStorage.removeItem('sb_user');
-      }
-
       if (response.status === 401) {
-        throw new ApiError('Session expired. Please login again.', response.status, json);
+        const rawMessage = String(json?.message || '').toLowerCase();
+        const isTokenFailure = rawMessage.includes('token')
+          || rawMessage.includes('session')
+          || rawMessage.includes('not authorized, no token')
+          || rawMessage.includes('user not found');
+
+        if (isTokenFailure && typeof window !== 'undefined') {
+          localStorage.removeItem('sb_token');
+          localStorage.removeItem('sb_user');
+          throw new ApiError('Session expired. Please login again.', response.status, json);
+        }
+
+        throw new ApiError(json?.message || 'Unauthorized request.', response.status, json);
       }
 
       // Backend sends { message, details } on validation errors
@@ -126,12 +138,12 @@ class ApiClient {
 
   // Internships
   async getInternships() {
-    return this.request<any[]>('/internships');
+    return this.request<Internship[]>('/internships');
   }
 
   // Enrollment
   async enroll(internshipId: string) {
-    return this.request<any>('/enroll', { method: 'POST', body: JSON.stringify({ internshipId }) });
+    return this.request<GenericResponse>('/enroll', { method: 'POST', body: JSON.stringify({ internshipId }) });
   }
 
   // Dashboard
@@ -140,7 +152,7 @@ class ApiClient {
   }
 
   async getMyInternships() {
-    return this.request<any[]>('/my-internships');
+    return this.request<DashboardData['enrollments']>('/my-internships');
   }
 
   async getAdminDashboard() {
@@ -156,7 +168,7 @@ class ApiClient {
   }
 
   async getAdminInternshipAnalytics(internshipId: string) {
-    return this.request<any>(`/admin/internship/${internshipId}/analytics`);
+    return this.request<AdminInternshipAnalytics>(`/admin/internship/${internshipId}/analytics`);
   }
 
   async getAdminUser(userId: string) {
@@ -164,14 +176,14 @@ class ApiClient {
   }
 
   async updateUserRole(userId: string, role: 'USER' | 'ADMIN') {
-    return this.request<any>(`/admin/user/${userId}/role`, {
+    return this.request<GenericResponse>(`/admin/user/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
     });
   }
 
   async reviewFinalSubmission(submissionId: string, body: { status: 'APPROVED' | 'REJECTED'; feedback?: string }) {
-    return this.request<any>(`/admin/final-submission/${submissionId}`, {
+    return this.request<GenericResponse>(`/admin/final-submission/${submissionId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
@@ -187,14 +199,14 @@ class ApiClient {
   }
 
   async updateAdminTicketStatus(ticketId: string, status: string) {
-    return this.request<any>(`/admin/tickets/${ticketId}`, {
+    return this.request<GenericResponse>(`/admin/tickets/${ticketId}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
   }
 
   async replyToAdminTicket(ticketId: string, reply: string, status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' = 'RESOLVED') {
-    return this.request<any>('/admin/tickets/reply', {
+    return this.request<GenericResponse>('/admin/tickets/reply', {
       method: 'POST',
       body: JSON.stringify({ ticketId, reply, status }),
     });
@@ -202,7 +214,7 @@ class ApiClient {
 
   // Tasks
   async getTasks(internshipId: string) {
-    return this.request<any[]>(`/tasks/${internshipId}`);
+    return this.request<Task[]>(`/tasks/${internshipId}`);
   }
 
   async getLearningPlan(internshipId: string) {
@@ -210,20 +222,20 @@ class ApiClient {
   }
 
   async submitTask(taskId: string, githubLink: string) {
-    return this.request<any>('/submit-task', { method: 'POST', body: JSON.stringify({ taskId, githubLink }) });
+    return this.request<GenericResponse>('/submit-task', { method: 'POST', body: JSON.stringify({ taskId, githubLink }) });
   }
 
   async markWeekComplete(body: { internshipId: string; weekNumber: number }) {
-    return this.request<any>('/learning-progress', { method: 'PATCH', body: JSON.stringify(body) });
+    return this.request<GenericResponse>('/learning-progress', { method: 'PATCH', body: JSON.stringify(body) });
   }
 
   async submitProject(body: { internshipId: string; projectTitle: string; projectLink: string; description: string; fileUrl?: string | null }) {
-    return this.request<any>('/submit-project', { method: 'POST', body: JSON.stringify(body) });
+    return this.request<GenericResponse>('/submit-project', { method: 'POST', body: JSON.stringify(body) });
   }
 
   // Certificates
   async generateCertificate(internshipId: string) {
-    return this.request<any>('/generate-certificate', { method: 'POST', body: JSON.stringify({ internshipId }) });
+    return this.request<GenericResponse>('/generate-certificate', { method: 'POST', body: JSON.stringify({ internshipId }) });
   }
 
   async verifyCertificate(certificateId: string) {
@@ -248,16 +260,16 @@ class ApiClient {
   }
 
   async verifyPayment(body: PaymentVerification) {
-    return this.request<any>('/verify-payment', { method: 'POST', body: JSON.stringify(body) });
+    return this.request<GenericResponse>('/verify-payment', { method: 'POST', body: JSON.stringify(body) });
   }
 
   async markPaymentFailed(body: PaymentFailurePayload) {
-    return this.request<any>('/payment-failed', { method: 'POST', body: JSON.stringify(body) });
+    return this.request<GenericResponse>('/payment-failed', { method: 'POST', body: JSON.stringify(body) });
   }
 
   // Tickets
   async createTicket(subject: string, message: string) {
-    return this.request<any>('/ticket', { method: 'POST', body: JSON.stringify({ subject, message }) });
+    return this.request<GenericResponse>('/ticket', { method: 'POST', body: JSON.stringify({ subject, message }) });
   }
 
   async getTickets() {
@@ -542,5 +554,33 @@ export type AdminCertificate = {
   viewUrl: string;
   downloadUrl: string;
 };
+
+export type AdminInternshipAnalytics = {
+  internship: { id: string; title: string; domain: string; taskCount: number };
+  enrollments: number;
+  submissions: { total: number; byStatus: Record<string, number> };
+  certificates: { generated: number; paid: number; unpaid: number };
+  revenue: { total: number; currency: string };
+};
+
+export type Internship = {
+  id: string;
+  title: string;
+  domain: string;
+  duration: string;
+  level: string;
+  description?: string;
+  price: number;
+};
+
+export type Task = {
+  id: string;
+  title: string;
+  description?: string;
+  week: number;
+  internshipId: string;
+};
+
+export type GenericResponse = Record<string, unknown>;
 
 export const api = new ApiClient();

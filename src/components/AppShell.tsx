@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Users,
   FileText,
+  Upload,
   Home,
   LogOut,
 } from "lucide-react";
@@ -41,6 +42,10 @@ const studentNav = [
 
 const adminNav = [
   { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
+  { label: "Screening Leads", href: "/admin/screening-leads", icon: Users },
+  { label: "Screening Actions", href: "/admin/screening-actions", icon: Send },
+  { label: "User Directory", href: "/admin/users", icon: Users },
+  { label: "Email Uploads", href: "/admin/upload-emails", icon: Upload },
   { label: "Submissions", href: "/admin/dashboard#submissions", icon: FileText },
   { label: "Internships", href: "/admin/dashboard#overview", icon: Briefcase },
   { label: "Users", href: "/admin/dashboard#users", icon: Users },

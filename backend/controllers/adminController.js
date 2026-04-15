@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const { parsePagination, paginatedResult } = require('../utils/pagination');
 const { createOrReturnCertificate } = require('./learningController');
 
 /**
@@ -7,7 +8,8 @@ const { createOrReturnCertificate } = require('./learningController');
  */
 const getPendingSubmissions = async (req, res, next) => {
   try {
-    const { internshipId, status = 'SUBMITTED' } = req.query;
+    const { internshipId, status } = req.query;
+    const { skip, take, page, limit } = parsePagination(req);
     const where = {};
 
     if (internshipId) {
@@ -16,23 +18,31 @@ const getPendingSubmissions = async (req, res, next) => {
 
     if (status) {
       where.status = status;
+    } else {
+      where.status = { in: ['SUBMITTED', 'UNDER_REVIEW'] };
     }
 
-    const submissions = await prisma.finalProjectSubmission.findMany({
-      where,
-      include: {
-        user: { select: { id: true, name: true, email: true, college: true } },
-        internship: { select: { id: true, title: true, domain: true } }
-      },
-      orderBy: { submittedAt: 'desc' }
-    });
+    const [submissions, total] = await Promise.all([
+      prisma.finalProjectSubmission.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true, college: true } },
+          internship: { select: { id: true, title: true, domain: true } }
+        },
+        orderBy: { submittedAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.finalProjectSubmission.count({ where }),
+    ]);
 
     res.json(ApiResponse.success(
-      submissions,
+      paginatedResult(submissions, total, page, limit),
       'Pending submissions retrieved successfully',
       200
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/getPendingSubmissions]', error);
     next(new ApiError(`Failed to fetch submissions: ${error.message}`, 500, 'FETCH_FAILED'));
   }
 };
@@ -90,6 +100,7 @@ const getUserDetails = async (req, res, next) => {
       200
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/getUserDetails]', error);
     next(new ApiError(`Failed to fetch user: ${error.message}`, 500, 'FETCH_FAILED'));
   }
 };
@@ -118,6 +129,7 @@ const updateUserRole = async (req, res, next) => {
       200
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/updateUserRole]', error);
     if (error.code === 'P2025') {
       return next(new ApiError('User not found', 404, 'USER_NOT_FOUND'));
     }
@@ -189,6 +201,7 @@ const getInternshipAnalytics = async (req, res, next) => {
       200
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/getInternshipAnalytics]', error);
     next(new ApiError(`Failed to fetch analytics: ${error.message}`, 500, 'FETCH_FAILED'));
   }
 };
@@ -198,6 +211,7 @@ const getInternshipAnalytics = async (req, res, next) => {
  */
 const getDashboardOverview = async (req, res, next) => {
   try {
+    console.log('[ADMIN DASHBOARD] Fetching overview');
     const [totalUsers, adminUsers, totalInternships, totalEnrollments, pendingSubmissions, totalRevenue, certificatesPaid] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'ADMIN' } }),
@@ -238,6 +252,7 @@ const getDashboardOverview = async (req, res, next) => {
       200
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/getDashboardOverview]', error);
     next(new ApiError(`Failed to fetch overview: ${error.message}`, 500, 'FETCH_FAILED'));
   }
 };
@@ -247,33 +262,45 @@ const getDashboardOverview = async (req, res, next) => {
  */
 const getCertificates = async (req, res, next) => {
   try {
-    const certificates = await prisma.certificate.findMany({
-      include: {
-        user: { select: { id: true, name: true, email: true, college: true } },
-        internship: { select: { id: true, title: true, domain: true } },
-      },
-      orderBy: { issuedDate: 'desc' },
-      take: 50,
-    });
+    const { skip, take, page, limit } = parsePagination(req);
+
+    const [certificates, total] = await Promise.all([
+      prisma.certificate.findMany({
+        include: {
+          user: { select: { id: true, name: true, email: true, college: true } },
+          internship: { select: { id: true, title: true, domain: true } },
+        },
+        orderBy: { issuedDate: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.certificate.count(),
+    ]);
 
     res.json(ApiResponse.success(
-      certificates.map((certificate) => ({
-        id: certificate.id,
-        certificateId: certificate.certificateId,
-        studentName: certificate.user?.name || 'Unknown',
-        email: certificate.user?.email || '',
-        college: certificate.user?.college || null,
-        internship: certificate.internship?.title || 'Unknown program',
-        domain: certificate.internship?.domain || '',
-        issuedDate: certificate.issuedDate,
-        isPaid: certificate.isPaid,
-        viewUrl: `/certificate/${certificate.certificateId}`,
-        downloadUrl: `/certificate/${certificate.certificateId}`,
-      })),
+      paginatedResult(
+        certificates.map((certificate) => ({
+          id: certificate.id,
+          certificateId: certificate.certificateId,
+          studentName: certificate.user?.name || 'Unknown',
+          email: certificate.user?.email || '',
+          college: certificate.user?.college || null,
+          internship: certificate.internship?.title || 'Unknown program',
+          domain: certificate.internship?.domain || '',
+          issuedDate: certificate.issuedDate,
+          isPaid: certificate.isPaid,
+          viewUrl: `/certificate/${certificate.certificateId}`,
+          downloadUrl: `/certificate/${certificate.certificateId}`,
+        })),
+        total,
+        page,
+        limit
+      ),
       'Certificates retrieved successfully',
       200,
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/getCertificates]', error);
     next(new ApiError(`Failed to fetch certificates: ${error.message}`, 500, 'FETCH_FAILED'));
   }
 };
@@ -285,6 +312,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
   try {
     const { submissionId } = req.params;
     const { status, feedback } = req.validatedBody;
+    console.log(`[ADMIN REVIEW] Start submissionId=${submissionId} status=${status}`);
 
     const submission = await prisma.finalProjectSubmission.findUnique({
       where: { id: submissionId },
@@ -305,6 +333,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
         feedback: feedback || null,
       },
     });
+    console.log(`[ADMIN REVIEW] DB update OK submissionId=${submissionId} newStatus=${status}`);
 
     let certificate = null;
 
@@ -313,6 +342,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
         userId: submission.userId,
         internshipId: submission.internshipId,
       });
+      console.log(`[ADMIN REVIEW] Certificate auto-generated for userId=${submission.userId}`);
 
       await prisma.userInternship.update({
         where: { userId_internshipId: { userId: submission.userId, internshipId: submission.internshipId } },
@@ -329,6 +359,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
       200,
     ));
   } catch (error) {
+    console.error('[API ERROR] [admin/reviewFinalProjectSubmission]', error);
     next(new ApiError(`Failed to review final project submission: ${error.message}`, 500, 'REVIEW_FAILED'));
   }
 };
