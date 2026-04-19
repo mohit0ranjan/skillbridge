@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const logger = require('../utils/logger');
 
 // ---------------------------------------------------------------------------
 // Singleton Prisma client – prevents multiple connection pools in
@@ -11,7 +12,7 @@ function buildClient() {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
-    console.error('❌ DATABASE_URL is not set. Prisma client will NOT connect.');
+    logger.error('prisma.database_url_missing');
     return new PrismaClient();
   }
 
@@ -30,10 +31,10 @@ function getPrisma() {
 async function testConnection() {
   try {
     await getPrisma().$queryRaw`SELECT 1`;
-    console.log('✅ Database connection verified');
+    logger.info('prisma.connection_verified');
     return true;
   } catch (err) {
-    console.error('❌ Database connection failed:', err.message);
+    logger.error('prisma.connection_failed', { errorMessage: err?.message });
     return false;
   }
 }

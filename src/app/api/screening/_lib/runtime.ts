@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 
 type PrismaLike = {
   $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<number>;
+  $queryRaw: <T = unknown>(query: TemplateStringsArray | string, ...values: unknown[]) => Promise<T>;
   $queryRawUnsafe: <T = unknown>(query: string, ...values: unknown[]) => Promise<T>;
 };
 

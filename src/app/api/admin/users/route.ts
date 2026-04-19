@@ -3,6 +3,7 @@ import { getAdminAuthResult } from "../_lib/auth";
 import { getPrisma } from "../../screening/_lib/runtime";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 export async function GET(request: Request) {
   try {
@@ -40,6 +41,14 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("[API ERROR] [admin/users]", error);
-    return NextResponse.json({ success: false, message: "Failed to fetch users" }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to fetch users";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

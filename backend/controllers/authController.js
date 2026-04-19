@@ -1,7 +1,8 @@
 const bcrypt = require('bcrypt');
 const prisma = require('../prisma');
 const { generateToken, generateResetToken, verifyToken } = require('../utils/jwt');
-const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
 const {
@@ -9,6 +10,7 @@ const {
   getPasswordResetSuccessEmailHtml,
 } = require('../utils/emailTemplates');
 const { isDatabaseUnavailableError, getFallbackUserByEmail, getFallbackUserById, fallbackUsers } = require('../utils/devFallback');
+
 
 /**
  * User Signup
@@ -24,7 +26,7 @@ const signup = async (req, res, next) => {
 
   try {
     ({ name, email, password, college, year } = req.validatedBody);
-    console.log(`[SIGNUP] Start email=${email} name=${name}`);
+    logger.info('auth.signup.start', { email, name });
 
     // Check if user already exists
     const userExists = await prisma.user.findUnique({
@@ -32,7 +34,7 @@ const signup = async (req, res, next) => {
     });
 
     if (userExists) {
-      console.log(`[SIGNUP] BLOCKED duplicate email=${email}`);
+      logger.warn('auth.signup.duplicate_email', { email });
       return next(new ApiError('Email already registered', 400, 'DUPLICATE_EMAIL'));
     }
 
@@ -52,7 +54,7 @@ const signup = async (req, res, next) => {
         emailVerified: false,
       },
     });
-    console.log(`[SIGNUP] DB insert OK userId=${user.id} email=${user.email}`);
+    logger.info('auth.signup.user_created', { userId: user.id, email: user.email });
 
     // Generate JWT token
     const token = generateToken(user.id);
@@ -60,8 +62,8 @@ const signup = async (req, res, next) => {
     emailService.sendOnboardingWelcome({
       userEmail: user.email,
       userName: user.name,
-    }).then(() => console.log(`[SIGNUP] Email queued to=${user.email}`))
-      .catch(err => console.error(`[SIGNUP] Email FAILED to=${user.email} err=${err.message}`));
+    }).then(() => logger.info('auth.signup.onboarding_email_queued', { email: user.email }))
+      .catch((err) => logger.error('auth.signup.onboarding_email_failed', { email: user.email, errorMessage: err?.message }));
 
     // Return response
     const response = ApiResponse.success(
@@ -78,7 +80,7 @@ const signup = async (req, res, next) => {
       201
     );
 
-    console.log(`[SIGNUP] Complete userId=${user.id}`);
+    logger.info('auth.signup.complete', { userId: user.id });
     res.status(201).json(response);
   } catch (error) {
     if (isDatabaseUnavailableError(error) && process.env.NODE_ENV === 'development') {
@@ -119,13 +121,8 @@ const signup = async (req, res, next) => {
       ));
     }
 
-    console.error('Signup error:', error);
-    next(new ApiError(
-      'Signup failed. Please try again.',
-      500,
-      'SIGNUP_ERROR',
-      process.env.NODE_ENV === 'development' ? error.message : null
-    ));
+    logger.error('auth.signup.error', { email, errorMessage: error?.message });
+    next(internalError('Signup failed. Please try again.', 'SIGNUP_ERROR', error));
   }
 };
 
@@ -136,7 +133,7 @@ const signup = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.validatedBody;
-    console.log(`[LOGIN] Attempt email=${email}`);
+    logger.info('auth.login.attempt', { email });
 
     // Find user
     let user;
@@ -153,7 +150,7 @@ const login = async (req, res, next) => {
     }
 
     if (!user) {
-      console.log(`[LOGIN] FAIL user not found email=${email}`);
+      logger.warn('auth.login.user_not_found', { email });
       return next(new ApiError('Invalid email or password', 401, 'INVALID_CREDENTIALS'));
     }
 
@@ -161,7 +158,7 @@ const login = async (req, res, next) => {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      console.log(`[LOGIN] FAIL wrong password email=${email}`);
+      logger.warn('auth.login.invalid_password', { email });
       return next(new ApiError('Invalid email or password', 401, 'INVALID_CREDENTIALS'));
     }
 
@@ -181,7 +178,7 @@ const login = async (req, res, next) => {
       'Login successful'
     );
 
-    console.log(`[LOGIN] Success userId=${user.id}`);
+    logger.info('auth.login.success', { userId: user.id });
     res.json(response);
   } catch (error) {
     if (isDatabaseUnavailableError(error) && process.env.NODE_ENV === 'development') {
@@ -212,13 +209,8 @@ const login = async (req, res, next) => {
       ));
     }
 
-    console.error('Login error:', error);
-    next(new ApiError(
-      'Login failed. Please try again.',
-      500,
-      'LOGIN_ERROR',
-      process.env.NODE_ENV === 'development' ? error.message : null
-    ));
+    logger.error('auth.login.error', { email: req.validatedBody?.email, errorMessage: error?.message });
+    next(internalError('Login failed. Please try again.', 'LOGIN_ERROR', error));
   }
 };
 
@@ -261,7 +253,7 @@ const logout = async (req, res, next) => {
   try {
     // In stateless JWT, logout is client-side (remove token from localStorage)
     // This endpoint is for audit/logging purposes
-    console.log(`[LOGOUT] userId=${req.user.id}`);
+    logger.info('auth.logout', { userId: req.user.id });
     const response = ApiResponse.success(null, 'Logout successful');
     res.json(response);
   } catch (error) {
@@ -277,7 +269,7 @@ const logout = async (req, res, next) => {
 const requestPasswordReset = async (req, res, next) => {
   try {
     const { email } = req.validatedBody;
-    console.log(`[RESET REQUEST] email=${email}`);
+    logger.info('auth.reset_request.start', { email });
 
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() }
@@ -306,7 +298,7 @@ const requestPasswordReset = async (req, res, next) => {
         name: user.name,
         resetLink,
       }),
-    }).catch(err => console.error('Reset email failed:', err.message));
+    }).catch((err) => logger.error('auth.reset_request.email_failed', { email: user.email, errorMessage: err?.message }));
 
     res.json(ApiResponse.success(
       null,
@@ -314,7 +306,8 @@ const requestPasswordReset = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Password reset request failed: ${error.message}`, 500, 'RESET_REQUEST_FAILED'));
+    logger.error('auth.reset_request.error', { email: req.validatedBody?.email, errorMessage: error?.message });
+    next(internalError('Password reset request failed', 'RESET_REQUEST_FAILED', error));
   }
 };
 
@@ -350,7 +343,7 @@ const resetPassword = async (req, res, next) => {
       where: { id: userId },
       data: { password: hashedPassword }
     });
-    console.log(`[RESET PASSWORD] DB update OK userId=${userId}`);
+    logger.info('auth.reset_password.updated', { userId });
 
     // Send confirmation email
     await emailService.send({
@@ -359,7 +352,7 @@ const resetPassword = async (req, res, next) => {
       html: getPasswordResetSuccessEmailHtml({
         name: user.name,
       }),
-    }).catch(err => console.error('Confirmation email failed:', err.message));
+    }).catch((err) => logger.error('auth.reset_password.confirmation_email_failed', { email: user.email, errorMessage: err?.message }));
 
     res.json(ApiResponse.success(
       { message: 'Password reset successfully' },
@@ -367,7 +360,8 @@ const resetPassword = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Password reset failed: ${error.message}`, 500, 'RESET_FAILED'));
+    logger.error('auth.reset_password.error', { errorMessage: error?.message });
+    next(internalError('Password reset failed', 'RESET_FAILED', error));
   }
 };
 
@@ -401,7 +395,7 @@ const verifyEmail = async (req, res, next) => {
         emailVerifiedAt: new Date(),
       },
     });
-    console.log(`[VERIFY EMAIL] Verified userId=${userId}`);
+    logger.info('auth.verify_email.success', { userId });
 
     res.json(ApiResponse.success(
       { verified: true },
@@ -409,7 +403,8 @@ const verifyEmail = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Email verification failed: ${error.message}`, 500, 'VERIFICATION_FAILED'));
+    logger.error('auth.verify_email.error', { errorMessage: error?.message });
+    next(internalError('Email verification failed', 'VERIFICATION_FAILED', error));
   }
 };
 

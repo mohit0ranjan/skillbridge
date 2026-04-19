@@ -48,26 +48,25 @@ const EMAIL_STAGES: { key: EmailStage; label: string; dbField: keyof ScreeningLe
 
 function MetricCard({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return (
-    <div className="dash-metric">
-      <p className="text-xs font-semibold text-gray-500 uppercase">{label}</p>
+    <div className="bg-white border border-[#E2E8F0] p-6 rounded-2xl shadow-[0_2px_12px_rgb(0,0,0,0.03)] hover:border-emerald-600 transition-colors">
+      <p className="text-[12px] font-bold text-[#64748B] uppercase tracking-wider">{label}</p>
       <div className="mt-3 flex items-end justify-between gap-4">
-        <p className="text-3xl font-bold tracking-tight text-gray-900">{value}</p>
-        <p className="text-sm text-gray-500 text-right">{hint}</p>
+        <p className="text-[32px] font-bold tracking-tight text-[#0F172A] leading-none">{value}</p>
+        <p className="text-[13px] font-medium text-[#64748B] text-right">{hint}</p>
       </div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  let colorClass = "status-badge-default";
+  let colorClass = "bg-gray-100 text-gray-700 border-gray-200";
   
-  if (status === "APPROVED" || status === "RESOLVED") colorClass = "status-badge-success";
-  else if (status === "REJECTED" || status === "CLOSED") colorClass = "bg-gray-100 text-gray-700";
-  else if (status === "PENDING" || status === "OPEN" || status === "SUBMITTED") colorClass = "status-badge-pending";
-  else if (status === "IN_PROGRESS") colorClass = "status-badge-warning";
-  else if (status === "UNDER_REVIEW") colorClass = "bg-amber-100 text-amber-700";
+  if (status === "APPROVED" || status === "RESOLVED") colorClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+  else if (status === "REJECTED" || status === "CLOSED") colorClass = "bg-gray-50 text-gray-500 border-gray-200";
+  else if (status === "PENDING" || status === "OPEN" || status === "SUBMITTED") colorClass = "bg-blue-50 text-blue-700 border-blue-200";
+  else if (status === "IN_PROGRESS" || status === "UNDER_REVIEW") colorClass = "bg-amber-50 text-amber-700 border-amber-200";
   
-  return <span className={`status-badge ${colorClass}`}>{status}</span>;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold uppercase tracking-wider border ${colorClass}`}>{status}</span>;
 }
 
 export default function AdminDashboardPage() {
@@ -381,73 +380,73 @@ export default function AdminDashboardPage() {
 
           {/* ─── Screening Funnel Quick View ─── */}
           {screeningMetrics && (
-            <div className="dash-card p-5 sm:p-6">
+            <div className="bg-white border border-[#E2E8F0] p-6 rounded-2xl shadow-[0_2px_12px_rgb(0,0,0,0.03)] sm:p-8">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                  <p className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
                     <Sparkles className="h-3.5 w-3.5" /> Screening Funnel
                   </p>
-                  <h2 className="mt-3 text-lg font-bold tracking-tight text-gray-900">Screening Pipeline</h2>
+                  <h2 className="mt-4 text-xl font-bold tracking-tight text-[#0F172A]">Screening Pipeline</h2>
                 </div>
-                <Link href="/admin/screening-leads" className="btn-primary btn-sm gap-2">
+                <Link href="/admin/screening-leads" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-emerald-600 px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-emerald-700 w-fit">
                   View All Leads <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
-                <div className="dash-inner bg-white text-center py-4">
-                  <p className="text-2xl font-black text-gray-900">{screeningMetrics.totalApplied}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Applied</p>
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="bg-[#F8F9FA] rounded-[10px] border border-[#E2E8F0] text-center py-5">
+                  <p className="text-3xl font-black text-[#0F172A]">{screeningMetrics.totalApplied}</p>
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-[#64748B] mt-1.5">Applied</p>
                 </div>
-                <div className="dash-inner bg-white text-center py-4">
-                  <p className="text-2xl font-black text-gray-900">{screeningMetrics.testCompleted}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Test Done</p>
+                <div className="bg-[#F8F9FA] rounded-[10px] border border-[#E2E8F0] text-center py-5">
+                  <p className="text-3xl font-black text-[#0F172A]">{screeningMetrics.testCompleted}</p>
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-[#64748B] mt-1.5">Test Done</p>
                 </div>
-                <div className="dash-inner bg-white text-center py-4">
-                  <p className="text-2xl font-black text-amber-700">{screeningMetrics.underReview}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Under Review</p>
+                <div className="bg-[#F8F9FA] rounded-[10px] border border-[#E2E8F0] text-center py-5">
+                  <p className="text-3xl font-black text-amber-600">{screeningMetrics.underReview}</p>
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-[#64748B] mt-1.5">Under Review</p>
                 </div>
-                <div className="dash-inner bg-white text-center py-4">
-                  <p className="text-2xl font-black text-green-700">{screeningMetrics.selected}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Selected</p>
+                <div className="bg-[#F8F9FA] rounded-[10px] border border-[#E2E8F0] text-center py-5">
+                  <p className="text-3xl font-black text-emerald-600">{screeningMetrics.selected}</p>
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-[#64748B] mt-1.5">Selected</p>
                 </div>
-                <div className="dash-inner bg-white text-center py-4">
-                  <p className="text-2xl font-black text-emerald-700">{screeningMetrics.converted}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1">Converted</p>
+                <div className="bg-[#F8F9FA] rounded-[10px] border border-[#E2E8F0] text-center py-5">
+                  <p className="text-3xl font-black text-emerald-700">{screeningMetrics.converted}</p>
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-[#64748B] mt-1.5">Converted</p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="dash-card p-6 lg:p-8 space-y-6">
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-gray-50/70 p-2">
+          <div className="bg-white border border-[#E2E8F0] p-6 lg:p-8 rounded-2xl shadow-[0_2px_12px_rgb(0,0,0,0.03)] space-y-6">
+            <div className="flex flex-wrap gap-2 rounded-[12px] border border-[#E2E8F0] bg-[#F8F9FA] p-1.5">
               <button 
                 onClick={() => activateTab("overview")} 
-                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'overview' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                className={`flex items-center gap-2.5 rounded-[8px] px-4 py-2 text-[13px] font-medium transition-colors ${activeTab === 'overview' ? 'bg-white text-emerald-700 shadow-sm border border-[#E2E8F0]' : 'text-[#64748B] hover:text-[#0F172A] border border-transparent'}`}
               >
                 <Sparkles className="h-4 w-4" /> Overview
               </button>
               <button 
                 onClick={() => activateTab("submissions")} 
-                className={`flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'submissions' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                className={`flex items-center justify-between gap-2.5 rounded-[8px] px-4 py-2 text-[13px] font-medium transition-colors ${activeTab === 'submissions' ? 'bg-white text-emerald-700 shadow-sm border border-[#E2E8F0]' : 'text-[#64748B] hover:text-[#0F172A] border border-transparent'}`}
               >
-                <span className="flex items-center gap-3"><FileText className="h-4 w-4" /> Submissions</span>
-                {overview?.submissions?.pending > 0 && <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{overview.submissions.pending}</span>}
+                <span className="flex items-center gap-2.5"><FileText className="h-4 w-4" /> Submissions</span>
+                {overview?.submissions?.pending > 0 && <span className="bg-orange-50 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-orange-200">{overview.submissions.pending}</span>}
               </button>
               <button 
                 onClick={() => activateTab("users")} 
-                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                className={`flex items-center gap-2.5 rounded-[8px] px-4 py-2 text-[13px] font-medium transition-colors ${activeTab === 'users' ? 'bg-white text-emerald-700 shadow-sm border border-[#E2E8F0]' : 'text-[#64748B] hover:text-[#0F172A] border border-transparent'}`}
               >
                 <Users className="h-4 w-4" /> User Management
               </button>
               <button 
                 onClick={() => activateTab("certificates")} 
-                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'certificates' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                className={`flex items-center gap-2.5 rounded-[8px] px-4 py-2 text-[13px] font-medium transition-colors ${activeTab === 'certificates' ? 'bg-white text-emerald-700 shadow-sm border border-[#E2E8F0]' : 'text-[#64748B] hover:text-[#0F172A] border border-transparent'}`}
               >
                 <BadgeCheck className="h-4 w-4" /> Certificates
               </button>
               <button 
                 onClick={() => activateTab("tickets")} 
-                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'tickets' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                className={`flex items-center gap-2.5 rounded-[8px] px-4 py-2 text-[13px] font-medium transition-colors ${activeTab === 'tickets' ? 'bg-white text-emerald-700 shadow-sm border border-[#E2E8F0]' : 'text-[#64748B] hover:text-[#0F172A] border border-transparent'}`}
               >
                 <LifeBuoy className="h-4 w-4" /> Support Tickets
               </button>
@@ -590,11 +589,11 @@ export default function AdminDashboardPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                           <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Completed Certs</p>
-                          <p className="mt-1 text-xl font-bold text-gray-900">{userDetail.certificates?.length || 0}</p>
+                          <p className="mt-1 text-xl font-bold text-gray-900">{userDetail.counts?.certificates ?? userDetail.certificates?.length ?? 0}</p>
                         </div>
                         <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                           <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Final Subs</p>
-                          <p className="mt-1 text-xl font-bold text-gray-900">{userDetail.finalSubmissions?.length || 0}</p>
+                          <p className="mt-1 text-xl font-bold text-gray-900">{userDetail.counts?.finalSubmissions ?? userDetail.finalSubmissions?.length ?? 0}</p>
                         </div>
                       </div>
                     </div>

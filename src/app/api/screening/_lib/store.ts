@@ -137,32 +137,21 @@ export function validateApplyPayload(payload: Partial<ScreeningLeadInput>) {
 
 export async function findLeadByEmail(email: string) {
   const prisma = getPrisma();
-  const rows = await prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-    "SELECT * FROM screening_leads WHERE LOWER(email) = LOWER($1) LIMIT 1",
-    email,
-  );
+  const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+    SELECT * FROM screening_leads WHERE LOWER(email) = LOWER(${email}) LIMIT 1
+  `;
   return rows[0] ?? null;
 }
 
 export async function createLead(input: ScreeningLeadInput) {
   const prisma = getPrisma();
   const recordId = randomUUID();
-  const rows = await prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-    `
-      INSERT INTO screening_leads (
-        id, name, email, phone, college, year, branch, source, status, test_submitted, test_score, email_sent, clicked_confirm, converted, selection_mail_sent, payment_mail_sent, offer_sent, onboarding_sent, certificate_issued
-      ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, 'applied', false, NULL, false, false, false, false, false, false, false, false)
-      RETURNING *
-    `,
-    recordId,
-    input.name,
-    input.email,
-    input.phone,
-    input.college,
-    input.year,
-    input.branch,
-    input.source ?? null,
-  );
+  const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+    INSERT INTO screening_leads (
+      id, name, email, phone, college, year, branch, source, status, test_submitted, test_score, email_sent, clicked_confirm, converted, selection_mail_sent, payment_mail_sent, offer_sent, onboarding_sent, certificate_issued
+    ) VALUES (${recordId}::uuid, ${input.name}, ${input.email}, ${input.phone}, ${input.college}, ${input.year}, ${input.branch}, ${input.source ?? null}, 'applied', false, NULL, false, false, false, false, false, false, false, false)
+    RETURNING *
+  `;
 
   return rows[0] ?? null;
 }
@@ -170,67 +159,77 @@ export async function createLead(input: ScreeningLeadInput) {
 export async function markTestSubmitted(email: string, testScore: number, testAnswers?: Record<string, unknown>) {
   const prisma = getPrisma();
   const answersJson = testAnswers ? JSON.stringify(testAnswers) : null;
-  const rows = await prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-    `
-      UPDATE screening_leads
-      SET test_submitted = true, status = 'under_review', test_score = $2, test_answers = $3::jsonb, email_sent = false
-      WHERE LOWER(email) = LOWER($1)
-      RETURNING *
-    `,
-    email,
-    testScore,
-    answersJson,
-  );
+  const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+    UPDATE screening_leads
+    SET test_submitted = true, status = 'under_review', test_score = ${testScore}, test_answers = ${answersJson}::jsonb, email_sent = false
+    WHERE LOWER(email) = LOWER(${email})
+    RETURNING *
+  `;
 
   return rows[0] ?? null;
 }
 
 export async function recordEmailSent(email: string, type: "selection" | "payment" | "offer" | "onboarding") {
   const prisma = getPrisma();
-  const column = type === "selection" ? "selection_mail_sent" : 
-                 type === "payment" ? "payment_mail_sent" : 
-                 type === "offer" ? "offer_sent" : "onboarding_sent";
-                 
-  const statusUpdate = type === "selection" ? "status = 'selected'," : "";
-
-  const rows = await prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-    `
+  if (type === "selection") {
+    const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
       UPDATE screening_leads
-      SET ${statusUpdate} ${column} = true, email_sent = true
-      WHERE LOWER(email) = LOWER($1)
+      SET status = 'selected', selection_mail_sent = true, email_sent = true
+      WHERE LOWER(email) = LOWER(${email})
       RETURNING *
-    `,
-    email
-  );
+    `;
+    return rows[0] ?? null;
+  }
+
+  if (type === "payment") {
+    const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+      UPDATE screening_leads
+      SET payment_mail_sent = true, email_sent = true
+      WHERE LOWER(email) = LOWER(${email})
+      RETURNING *
+    `;
+    return rows[0] ?? null;
+  }
+
+  if (type === "offer") {
+    const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+      UPDATE screening_leads
+      SET offer_sent = true, email_sent = true
+      WHERE LOWER(email) = LOWER(${email})
+      RETURNING *
+    `;
+    return rows[0] ?? null;
+  }
+
+  const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+    UPDATE screening_leads
+    SET onboarding_sent = true, email_sent = true
+    WHERE LOWER(email) = LOWER(${email})
+    RETURNING *
+  `;
   return rows[0] ?? null;
 }
 
 export async function markConfirmClicked(email: string) {
   const prisma = getPrisma();
-  const rows = await prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-    `
-      UPDATE screening_leads
-      SET clicked_confirm = true
-      WHERE LOWER(email) = LOWER($1)
-      RETURNING *
-    `,
-    email,
-  );
+  const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+    UPDATE screening_leads
+    SET clicked_confirm = true
+    WHERE LOWER(email) = LOWER(${email})
+    RETURNING *
+  `;
 
   return rows[0] ?? null;
 }
 
 export async function markConverted(email: string) {
   const prisma = getPrisma();
-  const rows = await prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-    `
-      UPDATE screening_leads
-      SET converted = true, status = 'converted'
-      WHERE LOWER(email) = LOWER($1)
-      RETURNING *
-    `,
-    email,
-  );
+  const rows = await prisma.$queryRaw<ScreeningLeadRecord[]>`
+    UPDATE screening_leads
+    SET converted = true, status = 'converted'
+    WHERE LOWER(email) = LOWER(${email})
+    RETURNING *
+  `;
 
   return rows[0] ?? null;
 }
@@ -239,20 +238,17 @@ export async function listLeads(status?: ScreeningStatus) {
   const prisma = getPrisma();
 
   if (status) {
-    return prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(
-      `
-        SELECT id, name, email, phone, college, year, branch, source, status, test_submitted, test_score, email_sent, clicked_confirm, converted, created_at, selection_mail_sent, payment_mail_sent, offer_sent, onboarding_sent, certificate_issued
-        FROM screening_leads
-        WHERE status = $1
-        ORDER BY created_at DESC
-      `,
-      status,
-    );
+    return prisma.$queryRaw<ScreeningLeadRecord[]>`
+      SELECT id, name, email, phone, college, year, branch, source, status, test_submitted, test_score, email_sent, clicked_confirm, converted, created_at, selection_mail_sent, payment_mail_sent, offer_sent, onboarding_sent, certificate_issued
+      FROM screening_leads
+      WHERE status = ${status}
+      ORDER BY created_at DESC
+    `;
   }
 
-  return prisma.$queryRawUnsafe<ScreeningLeadRecord[]>(`
+  return prisma.$queryRaw<ScreeningLeadRecord[]>`
     SELECT id, name, email, phone, college, year, branch, source, status, test_submitted, test_score, email_sent, clicked_confirm, converted, created_at, selection_mail_sent, payment_mail_sent, offer_sent, onboarding_sent, certificate_issued
     FROM screening_leads
     ORDER BY created_at DESC
-  `);
+  `;
 }

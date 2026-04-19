@@ -64,16 +64,12 @@ export async function POST(request: Request) {
 
     const email = normalizeEmail(payload.email);
     const testScore = calculateMcqScore(payload.answers);
-    console.log(`[TEST SUBMIT] Start email=${email} score=${testScore}`);
 
     const updatedLead = await markTestSubmitted(email, testScore, payload.answers as Record<string, unknown>);
 
     if (!updatedLead) {
-      console.log(`[TEST SUBMIT] FAIL Lead not found email=${email}`);
       return NextResponse.json({ success: false, message: "Lead not found" }, { status: 404 });
     }
-    
-    console.log(`[TEST SUBMIT] DB update OK queue=under_review email=${email}`);
 
     // Email service shifted to manual admin CRM logic.
     // Candidate strictly moves into under_review state.

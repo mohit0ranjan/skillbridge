@@ -1,7 +1,19 @@
 const prisma = require('../prisma');
-const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const { parsePagination, paginatedResult } = require('../utils/pagination');
 const { createOrReturnCertificate } = require('./learningController');
+const emailServiceModule = require('../services/email.service');
+const emailService = emailServiceModule.emailService || emailServiceModule;
+const {
+  getWelcomeEmailHtml,
+  getEnrollmentConfirmationEmailHtml,
+  getPaymentSuccessEmailHtml,
+  getCertificateDeliveryEmailHtml,
+  getSupportReplyEmailHtml,
+  renderPremiumEmail,
+} = require('../utils/emailTemplates');
+
 
 /**
  * Get all submissions pending review (admin only)
@@ -42,8 +54,8 @@ const getPendingSubmissions = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/getPendingSubmissions]', error);
-    next(new ApiError(`Failed to fetch submissions: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('admin.get_pending_submissions.error', { errorMessage: error?.message });
+    next(internalError('Failed to fetch submissions', 'FETCH_FAILED', error));
   }
 };
 
@@ -54,54 +66,90 @@ const getUserDetails = async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        college: true,
-        year: true,
-        role: true,
-        emailVerified: true,
-        createdAt: true,
-        // NOTE: password is intentionally excluded — never expose hashes
-        internships: {
-          include: {
-            internship: { select: { id: true, title: true, domain: true } }
+    const [user, internshipsCount, submissionsCount, finalSubmissionsCount, certificatesCount, paymentsCount] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          college: true,
+          year: true,
+          role: true,
+          emailVerified: true,
+          createdAt: true,
+          // NOTE: password is intentionally excluded — never expose hashes
+          internships: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            include: {
+              internship: { select: { id: true, title: true, domain: true } }
+            }
+          },
+          submissions: {
+            orderBy: { submittedAt: 'desc' },
+            take: 10,
+            include: {
+              task: { select: { id: true, title: true } }
+            }
+          },
+          finalSubmissions: {
+            orderBy: { submittedAt: 'desc' },
+            take: 10,
+            include: {
+              internship: { select: { id: true, title: true, domain: true } }
+            }
+          },
+          certificates: {
+            orderBy: { issuedDate: 'desc' },
+            take: 10,
+            include: {
+              internship: { select: { title: true } }
+            }
+          },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: {
+              id: true,
+              amount: true,
+              status: true,
+              currency: true,
+              createdAt: true,
+              internshipId: true,
+              razorpayOrderId: true,
+            }
           }
-        },
-        submissions: {
-          include: {
-            task: { select: { id: true, title: true } }
-          }
-        },
-        finalSubmissions: {
-          include: {
-            internship: { select: { id: true, title: true, domain: true } }
-          }
-        },
-        certificates: {
-          include: {
-            internship: { select: { title: true } }
-          }
-        },
-        payments: true
-      }
-    });
+        }
+      }),
+      prisma.userInternship.count({ where: { userId } }),
+      prisma.submission.count({ where: { userId } }),
+      prisma.finalProjectSubmission.count({ where: { userId } }),
+      prisma.certificate.count({ where: { userId } }),
+      prisma.payment.count({ where: { userId } }),
+    ]);
 
     if (!user) {
       return next(new ApiError('User not found', 404, 'USER_NOT_FOUND'));
     }
 
     res.json(ApiResponse.success(
-      user,
+      {
+        ...user,
+        counts: {
+          internships: internshipsCount,
+          submissions: submissionsCount,
+          finalSubmissions: finalSubmissionsCount,
+          certificates: certificatesCount,
+          payments: paymentsCount,
+        }
+      },
       'User details retrieved successfully',
       200
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/getUserDetails]', error);
-    next(new ApiError(`Failed to fetch user: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('admin.get_user_details.error', { userId: req.params?.userId, errorMessage: error?.message });
+    next(internalError('Failed to fetch user', 'FETCH_FAILED', error));
   }
 };
 
@@ -129,11 +177,11 @@ const updateUserRole = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/updateUserRole]', error);
+    logger.error('admin.update_user_role.error', { userId: req.params?.userId, errorMessage: error?.message });
     if (error.code === 'P2025') {
       return next(new ApiError('User not found', 404, 'USER_NOT_FOUND'));
     }
-    next(new ApiError(`Failed to update user: ${error.message}`, 500, 'UPDATE_FAILED'));
+    next(internalError('Failed to update user', 'UPDATE_FAILED', error));
   }
 };
 
@@ -201,8 +249,8 @@ const getInternshipAnalytics = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/getInternshipAnalytics]', error);
-    next(new ApiError(`Failed to fetch analytics: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('admin.get_internship_analytics.error', { internshipId: req.params?.internshipId, errorMessage: error?.message });
+    next(internalError('Failed to fetch analytics', 'FETCH_FAILED', error));
   }
 };
 
@@ -211,7 +259,7 @@ const getInternshipAnalytics = async (req, res, next) => {
  */
 const getDashboardOverview = async (req, res, next) => {
   try {
-    console.log('[ADMIN DASHBOARD] Fetching overview');
+    logger.info('admin.dashboard_overview.fetching');
     const [totalUsers, adminUsers, totalInternships, totalEnrollments, pendingSubmissions, totalRevenue, certificatesPaid] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'ADMIN' } }),
@@ -252,8 +300,8 @@ const getDashboardOverview = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/getDashboardOverview]', error);
-    next(new ApiError(`Failed to fetch overview: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('admin.dashboard_overview.error', { errorMessage: error?.message });
+    next(internalError('Failed to fetch overview', 'FETCH_FAILED', error));
   }
 };
 
@@ -300,8 +348,8 @@ const getCertificates = async (req, res, next) => {
       200,
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/getCertificates]', error);
-    next(new ApiError(`Failed to fetch certificates: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('admin.get_certificates.error', { errorMessage: error?.message });
+    next(internalError('Failed to fetch certificates', 'FETCH_FAILED', error));
   }
 };
 
@@ -312,7 +360,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
   try {
     const { submissionId } = req.params;
     const { status, feedback } = req.validatedBody;
-    console.log(`[ADMIN REVIEW] Start submissionId=${submissionId} status=${status}`);
+    logger.info('admin.review_submission.start', { submissionId, status });
 
     const submission = await prisma.finalProjectSubmission.findUnique({
       where: { id: submissionId },
@@ -333,7 +381,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
         feedback: feedback || null,
       },
     });
-    console.log(`[ADMIN REVIEW] DB update OK submissionId=${submissionId} newStatus=${status}`);
+    logger.info('admin.review_submission.updated', { submissionId, status });
 
     let certificate = null;
 
@@ -342,7 +390,7 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
         userId: submission.userId,
         internshipId: submission.internshipId,
       });
-      console.log(`[ADMIN REVIEW] Certificate auto-generated for userId=${submission.userId}`);
+      logger.info('admin.review_submission.certificate_autogenerated', { userId: submission.userId, internshipId: submission.internshipId });
 
       await prisma.userInternship.update({
         where: { userId_internshipId: { userId: submission.userId, internshipId: submission.internshipId } },
@@ -359,8 +407,158 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
       200,
     ));
   } catch (error) {
-    console.error('[API ERROR] [admin/reviewFinalProjectSubmission]', error);
-    next(new ApiError(`Failed to review final project submission: ${error.message}`, 500, 'REVIEW_FAILED'));
+    logger.error('admin.review_submission.error', { submissionId: req.params?.submissionId, errorMessage: error?.message });
+    next(internalError('Failed to review final project submission', 'REVIEW_FAILED', error));
+  }
+};
+
+/**
+ * Send manual admin CRM email to a specific user.
+ * I1 FIX: enables admin dashboard to dispatch Selection/Payment/Offer/Onboarding emails.
+ * POST /admin/send-email
+ */
+const sendAdminEmail = async (req, res, next) => {
+  try {
+    const { userId, templateType, params } = req.validatedBody;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (!user) {
+      return next(new ApiError('User not found', 404, 'USER_NOT_FOUND'));
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://skillbridge.co.in';
+    const dashboardUrl = `${frontendUrl}/dashboard`;
+    const supportEmail = process.env.SUPPORT_EMAIL || 'support@skillbridge.co.in';
+
+    let subject, html;
+
+    switch (templateType) {
+      case 'SELECTION': {
+        subject = `🎉 Congratulations! You've been selected — ${params?.programTitle || 'SkillBridge'}${params?.cohort ? ` (${params.cohort})` : ''}`;
+        html = renderPremiumEmail({
+          eyebrow: 'SKILLBRIDGE • SELECTION',
+          title: 'You have been selected!',
+          intro: 'Congratulations! Your application has been reviewed and you have been selected.',
+          highlight: params?.selectionNote || 'Your performance stood out. Welcome to the SkillBridge program.',
+          body: [
+            `Hi <strong>${user.name}</strong>,`,
+            `We are thrilled to inform you that you have been selected for the <strong>${params?.programTitle || 'SkillBridge Internship Program'}</strong>${params?.cohort ? ` — ${params.cohort}` : ''}.`,
+            params?.nextSteps || 'Our team will reach out with next steps shortly. Please check your dashboard for updates.',
+          ],
+          cards: [
+            { label: 'Program', value: params?.programTitle || 'SkillBridge Internship' },
+            { label: 'Status', value: 'Selected' },
+            ...(params?.cohort ? [{ label: 'Cohort', value: params.cohort }] : []),
+            ...(params?.startDate ? [{ label: 'Start Date', value: params.startDate }] : []),
+          ],
+          ctaLabel: 'View Dashboard',
+          ctaUrl: dashboardUrl,
+          footerNote: `Support: ${supportEmail}`,
+        });
+        break;
+      }
+
+      case 'PAYMENT': {
+        subject = `Payment Instructions — ${params?.programTitle || 'SkillBridge'}`;
+        html = renderPremiumEmail({
+          eyebrow: 'SKILLBRIDGE • PAYMENT',
+          title: 'Payment Instructions',
+          intro: 'Complete your enrollment by following the payment instructions below.',
+          highlight: params?.paymentNote || 'Your seat is reserved. Please complete payment to confirm enrollment.',
+          body: [
+            `Hi <strong>${user.name}</strong>,`,
+            `To confirm your seat in <strong>${params?.programTitle || 'the program'}</strong>, please complete the payment.`,
+            params?.instructions || 'Visit the link below to proceed with payment.',
+          ],
+          cards: [
+            { label: 'Program', value: params?.programTitle || 'SkillBridge Internship' },
+            ...(params?.amount ? [{ label: 'Amount', value: `₹${params.amount}` }] : []),
+            ...(params?.deadline ? [{ label: 'Deadline', value: params.deadline }] : []),
+          ],
+          ctaLabel: 'Complete Payment',
+          ctaUrl: params?.paymentUrl || dashboardUrl,
+          footerNote: `Support: ${supportEmail}`,
+        });
+        break;
+      }
+
+      case 'OFFER': {
+        subject = `📄 Your Offer Letter — ${params?.programTitle || 'SkillBridge'}`;
+        html = renderPremiumEmail({
+          eyebrow: 'SKILLBRIDGE • OFFER',
+          title: 'Offer Letter',
+          intro: 'Please find your official internship offer details below.',
+          highlight: params?.offerNote || 'Please review and confirm acceptance by the deadline.',
+          body: [
+            `Hi <strong>${user.name}</strong>,`,
+            `We are pleased to extend an offer for the <strong>${params?.programTitle || 'SkillBridge Internship'}</strong>.`,
+            params?.terms || 'This is a virtual internship. You will receive training, live projects, and a verified certificate upon completion.',
+          ],
+          cards: [
+            { label: 'Program', value: params?.programTitle || 'SkillBridge Internship' },
+            ...(params?.startDate ? [{ label: 'Start Date', value: params.startDate }] : []),
+            ...(params?.duration ? [{ label: 'Duration', value: params.duration }] : []),
+            ...(params?.stipend ? [{ label: 'Stipend', value: params.stipend }] : []),
+          ],
+          ctaLabel: 'Accept Offer',
+          ctaUrl: params?.acceptUrl || dashboardUrl,
+          footerNote: `Support: ${supportEmail}`,
+        });
+        break;
+      }
+
+      case 'ONBOARDING': {
+        subject = `🚀 Welcome Onboard — ${params?.programTitle || 'SkillBridge'}!`;
+        html = getEnrollmentConfirmationEmailHtml({
+          userName: user.name,
+          internshipTitle: params?.programTitle || 'SkillBridge Internship',
+          internshipDuration: params?.duration || '4 Weeks',
+          supportEmail,
+          dashboardUrl,
+        });
+        break;
+      }
+
+      case 'REJECTION': {
+        subject = `Application Update — ${params?.programTitle || 'SkillBridge'}`;
+        html = renderPremiumEmail({
+          eyebrow: 'SKILLBRIDGE • UPDATE',
+          title: 'Application Update',
+          intro: 'Thank you for your interest in SkillBridge.',
+          highlight: params?.rejectionNote || 'We received many strong applications this cycle.',
+          body: [
+            `Hi <strong>${user.name}</strong>,`,
+            `Thank you for applying to <strong>${params?.programTitle || 'the SkillBridge program'}</strong>.`,
+            params?.message || 'After careful consideration, we are unable to offer you a position in this cohort. We encourage you to apply again in the next cycle.',
+          ],
+          cards: [
+            { label: 'Program', value: params?.programTitle || 'SkillBridge Internship' },
+            { label: 'Status', value: 'Not Selected' },
+          ],
+          footerNote: `Support: ${supportEmail}`,
+        });
+        break;
+      }
+
+      default:
+        return next(new ApiError(`Unknown template type: ${templateType}`, 400, 'INVALID_TEMPLATE'));
+    }
+
+    await emailService.send({ to: user.email, subject, html });
+    logger.info('admin.send_email.sent', { userId, templateType, email: user.email });
+
+    res.json(ApiResponse.success(
+      { userId, templateType, email: user.email },
+      `Email dispatched successfully to ${user.email}`,
+      200
+    ));
+  } catch (error) {
+    logger.error('admin.send_email.error', { userId: req.validatedBody?.userId, templateType: req.validatedBody?.templateType, errorMessage: error?.message });
+    next(internalError('Failed to send email', 'EMAIL_DISPATCH_FAILED', error));
   }
 };
 
@@ -372,4 +570,5 @@ module.exports = {
   getDashboardOverview,
   getCertificates,
   reviewFinalProjectSubmission,
+  sendAdminEmail,
 };

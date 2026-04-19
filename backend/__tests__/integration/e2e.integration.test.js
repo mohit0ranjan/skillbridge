@@ -50,6 +50,12 @@ jest.mock('../../prisma', () => {
       create: jest.fn(),
       count: jest.fn(),
     },
+    ticket: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      create: jest.fn(),
+    },
   };
 
   prisma.$transaction = jest.fn(async (runner) => runner(prisma));
@@ -126,6 +132,43 @@ describe('E2E Pipeline Integration', () => {
     expect(prisma.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'SUCCESS', razorpayId: 'pay_RAZOR' } }));
     expect(prisma.userInternship.upsert).toHaveBeenCalled();
     expect(emailService.sendEnrollmentConfirmation).toHaveBeenCalled();
+  });
+
+  it('1a. Webhook rejects requests with missing signature', async () => {
+    const webhookBody = {
+      event: 'payment.captured',
+      payload: { payment: { entity: { order_id: 'order_TEST', id: 'pay_RAZOR' } } }
+    };
+
+    const res = await request(app)
+      .post(apiPath('/razorpay-webhook'))
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify(webhookBody));
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('MISSING_SIGNATURE');
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(prisma.userInternship.upsert).not.toHaveBeenCalled();
+  });
+
+  it('1c. Webhook rejects requests with invalid signature', async () => {
+    const webhookBody = {
+      event: 'payment.captured',
+      payload: { payment: { entity: { order_id: 'order_TEST', id: 'pay_RAZOR' } } }
+    };
+
+    const res = await request(app)
+      .post(apiPath('/razorpay-webhook'))
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', 'deadbeef')
+      .send(JSON.stringify(webhookBody));
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('INVALID_SIGNATURE');
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(prisma.userInternship.upsert).not.toHaveBeenCalled();
   });
 
   it('1b. Verify payment restores missing enrollment for an already-successful payment', async () => {
@@ -216,6 +259,56 @@ describe('E2E Pipeline Integration', () => {
     expect(res.body.data.revenue.total).toBe(5000); // 500000 / 100
   });
 
+  it('3a. Admin dashboard hides internal errors on failures', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.user.count.mockRejectedValue(new Error('database connection reset by peer'));
+
+    const res = await request(app)
+      .get(apiPath('/admin/dashboard'))
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('FETCH_FAILED');
+    expect(res.body.message).toBe('Failed to fetch overview');
+    expect(res.body.details).toBeUndefined();
+  });
+
+  it('3b. Admin ticket listing hides internal errors on failures', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.ticket.findMany.mockRejectedValue(new Error('ticket table lock timeout'));
+
+    const res = await request(app)
+      .get(apiPath('/admin/tickets'))
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('TICKETS_FETCH_FAILED');
+    expect(res.body.message).toBe('Failed to fetch tickets');
+    expect(res.body.details).toBeUndefined();
+  });
+
+  it('3c. Admin ticket reply hides internal errors on failures', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.ticket.findUnique.mockRejectedValue(new Error('unexpected db read failure'));
+
+    const res = await request(app)
+      .post(apiPath('/admin/tickets/reply'))
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        ticketId: '123e4567-e89b-12d3-a456-426614174009',
+        reply: 'We are looking into this right away.',
+        status: 'RESOLVED',
+      });
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('TICKET_REPLY_FAILED');
+    expect(res.body.message).toBe('Failed to reply to ticket');
+    expect(res.body.details).toBeUndefined();
+  });
+
   it('4. Admin approves project & Certificate triggers Email', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
     
@@ -267,5 +360,25 @@ describe('E2E Pipeline Integration', () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain(`/certificate/${encodeURIComponent(certificateId)}`);
+  });
+
+  it('6. Malformed webhook payloads do not leak internal error details', async () => {
+    const rawInvalidPayload = '{"event":"payment.captured",';
+    const crypto = require('crypto');
+    const signature = crypto.createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET || 'test')
+      .update(rawInvalidPayload)
+      .digest('hex');
+
+    const res = await request(app)
+      .post(apiPath('/razorpay-webhook'))
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', signature)
+      .send(rawInvalidPayload);
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('INTERNAL_ERROR');
+    expect(res.body.message).toBe('Internal server error');
+    expect(res.body.details).toBeUndefined();
   });
 });

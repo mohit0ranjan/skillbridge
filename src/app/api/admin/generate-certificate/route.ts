@@ -7,6 +7,7 @@ import { getCertificateEmailHtml } from "../_lib/emailTemplates";
 import { sendWithRetry } from "../_lib/sendWithRetry";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 const require = createRequire(import.meta.url);
 const { generateCertificatePdf } = require("../../../../../backend/utils/pdfGenerator");
@@ -93,6 +94,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[API ERROR] [admin/generate-certificate]", error);
-    return NextResponse.json({ success: false, message: "Failed to generate certificate", error: String(error) }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to generate certificate";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

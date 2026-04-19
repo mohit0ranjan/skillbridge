@@ -1,5 +1,7 @@
 const { verifyToken } = require('../utils/jwt');
 const prisma = require('../prisma');
+const logger = require('../utils/logger');
+const { ApiResponse } = require('../utils/apiResponse');
 
 const extractBearerToken = (authHeader) => {
   if (!authHeader || typeof authHeader !== 'string') return null;
@@ -10,14 +12,14 @@ const extractBearerToken = (authHeader) => {
 
 /**
  * Authentication middleware — validates JWT and attaches user to request.
- * Does NOT fall back to dev users; if DB is down, auth fails cleanly.
+ * B3 FIX: responses now use ApiResponse envelope for consistency.
  */
 const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   const token = extractBearerToken(authHeader);
 
   if (!token) {
-    return res.status(401).json({ message: 'Not authorized, no token' });
+    return res.status(401).json(ApiResponse.error('Not authorized, no token', 401, 'NO_TOKEN'));
   }
 
   try {
@@ -29,23 +31,21 @@ const protect = async (req, res, next) => {
     });
 
     if (!user) {
-      console.warn(`[authMiddleware] 401: User ${decoded.id} not found in DB`);
-      return res.status(401).json({ message: 'User not found' });
+      logger.warn('auth.middleware.user_not_found', { userId: decoded.id });
+      return res.status(401).json(ApiResponse.error('User not found', 401, 'USER_NOT_FOUND'));
     }
 
     req.user = user;
     next();
   } catch (error) {
-    console.warn(`[authMiddleware] 401: JWT Verification failed:`, error.message);
-    // Covers: invalid token, expired token, wrong issuer/audience
-    return res.status(401).json({ message: 'Not authorized, token failed' });
+    logger.warn('auth.middleware.jwt_verify_failed', { errorMessage: error?.message });
+    return res.status(401).json(ApiResponse.error('Not authorized, token failed', 401, 'TOKEN_INVALID'));
   }
 };
 
 /**
  * Optional authentication — sets req.user if valid token present,
- * but continues to next middleware regardless. Useful for public
- * endpoints that optionally personalize for logged-in users.
+ * but continues to next middleware regardless.
  */
 const optionalProtect = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -65,10 +65,10 @@ const optionalProtect = async (req, res, next) => {
     if (user) {
       req.user = user;
     } else {
-      console.warn(`[authMiddleware] optionalProtect: User ${decoded.id} not found`);
+      logger.warn('auth.middleware.optional_user_not_found', { userId: decoded.id });
     }
   } catch (error) {
-    console.warn(`[authMiddleware] optionalProtect: JWT Verfication failed:`, error.message);
+    logger.warn('auth.middleware.optional_jwt_verify_failed', { errorMessage: error?.message });
     // Token invalid/expired — continue without user
   }
 

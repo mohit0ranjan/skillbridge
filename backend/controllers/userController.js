@@ -1,9 +1,11 @@
 const prisma = require('../prisma');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
-const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const { isDatabaseUnavailableError, buildFallbackDashboard } = require('../utils/devFallback');
 const { buildCurriculumTasks, groupTasksByWeek } = require('../utils/internshipCurriculum');
+
 
 /**
  * Enroll user in internship
@@ -14,7 +16,7 @@ const enroll = async (req, res, next) => {
   try {
     const { internshipId } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[ENROLL] Start userId=${userId} internshipId=${internshipId}`);
+    logger.info('users.enroll.start', { userId, internshipId });
 
     // Check internship exists
     const internship = await prisma.internship.findUnique({
@@ -31,7 +33,7 @@ const enroll = async (req, res, next) => {
     });
 
     if (existingEnrollment) {
-      console.log(`[ENROLL] BLOCKED already enrolled userId=${userId} internshipId=${internshipId}`);
+      logger.warn('users.enroll.already_enrolled', { userId, internshipId });
       return next(new ApiError('You are already enrolled in this internship', 400, 'ALREADY_ENROLLED'));
     }
 
@@ -52,7 +54,7 @@ const enroll = async (req, res, next) => {
         progress: 0
       }
     });
-    console.log(`[ENROLL] DB insert OK enrollmentId=${enrollment.id}`);
+    logger.info('users.enroll.persisted', { enrollmentId: enrollment.id, userId, internshipId });
 
     // Get user details for email
     const user = await prisma.user.findUnique({
@@ -67,8 +69,8 @@ const enroll = async (req, res, next) => {
         userName: user.name,
         internshipTitle: internship.title,
         internshipDuration: internship.duration || '12 weeks'
-      }).then(() => console.log(`[ENROLL] Email queued to=${user.email}`))
-        .catch(err => console.error(`[ENROLL] Email FAILED to=${user.email} err=${err.message}`));
+      }).then(() => logger.info('users.enroll.email_queued', { email: user.email }))
+        .catch((err) => logger.error('users.enroll.email_failed', { email: user.email, errorMessage: err?.message }));
     }
 
     res.json(ApiResponse.success(
@@ -87,7 +89,8 @@ const enroll = async (req, res, next) => {
       201
     ));
   } catch (error) {
-    next(new ApiError(`Enrollment failed: ${error.message}`, 500, 'ENROLLMENT_FAILED'));
+    logger.error('users.enroll.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Enrollment failed', 'ENROLLMENT_FAILED', error));
   }
 };
 
@@ -98,9 +101,9 @@ const enroll = async (req, res, next) => {
 const getDashboard = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    console.log(`[DASHBOARD] Fetch userId=${userId}`);
+    logger.info('users.dashboard.fetch', { userId });
 
-    const [user, userInternships, finalSubmissions, certificates] = await Promise.all([
+    const [user, userInternships, finalSubmissions, certificates, taskSubmissions] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, name: true, email: true, role: true, college: true, year: true }
@@ -118,6 +121,11 @@ const getDashboard = async (req, res, next) => {
       }),
       prisma.certificate.findMany({
         where: { userId }
+      }),
+      // I5 FIX: fetch real task submission status instead of hardcoding 'pending'
+      prisma.submission.findMany({
+        where: { userId },
+        select: { taskId: true, status: true, feedback: true }
       })
     ]);
 
@@ -153,14 +161,18 @@ const getDashboard = async (req, res, next) => {
           submitted: submission ? 1 : 0,
           approved: submission ? 1 : 0
         },
-        tasks: sourceTasks.map((task, index) => ({
-          id: task.id || `${ui.internshipId}-task-${index + 1}`,
-          title: task.title,
-          week: task.week,
-          status: 'pending',
-          submissionStatus: null,
-          feedback: null
-        })),
+        tasks: sourceTasks.map((task, index) => {
+          const sub = taskSubmissions.find((s) => s.taskId === task.id);
+          return {
+            id: task.id || `${ui.internshipId}-task-${index + 1}`,
+            title: task.title,
+            week: task.week,
+            // I5 FIX: real submission status from DB, not hardcoded 'pending'
+            status: sub?.status || 'PENDING',
+            submissionStatus: sub?.status || null,
+            feedback: sub?.feedback || null
+          };
+        }),
         weeks,
         finalSubmission: submission ? {
           id: submission.id,
@@ -222,7 +234,8 @@ const getDashboard = async (req, res, next) => {
       ));
     }
 
-    next(new ApiError(`Dashboard retrieval failed: ${error.message}`, 500, 'DASHBOARD_FAILED'));
+    logger.error('users.dashboard.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Dashboard retrieval failed', 'DASHBOARD_FAILED', error));
   }
 };
 
@@ -259,7 +272,8 @@ const getMyInternships = async (req, res, next) => {
 
     res.json(ApiResponse.success(data, 'User internships retrieved successfully', 200));
   } catch (error) {
-    next(new ApiError(`Failed to fetch user internships: ${error.message}`, 500, 'MY_INTERNSHIPS_FAILED'));
+    logger.error('users.my_internships.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Failed to fetch user internships', 'MY_INTERNSHIPS_FAILED', error));
   }
 };
 

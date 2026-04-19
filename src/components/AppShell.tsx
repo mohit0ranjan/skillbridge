@@ -110,22 +110,19 @@ export default function AppShell({ variant, title, subtitle, actions, children }
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <div className="flex min-h-screen">
         {/* ─── Sidebar ─── */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-[260px] border-r border-gray-200 bg-white transition-transform duration-300 md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+        <aside className={`fixed inset-y-0 left-0 z-40 w-[260px] border-r border-[#E2E8F0] bg-[#F8F9FA] transition-transform duration-300 md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
           <div className="flex h-full flex-col">
             {/* Logo */}
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <Link href={variant === "admin" ? "/admin/dashboard" : "/dashboard"} className="flex items-center gap-3" onClick={() => setMobileOpen(false)}>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white font-bold text-sm">
-                  S
-                </div>
-                <div>
-                  <p className="text-sm font-semibold tracking-tight text-gray-900">SkillBridge</p>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400">{variant === "admin" ? "Admin" : "Student"}</p>
-                </div>
+            <div className="flex items-center justify-between px-6 h-16 mt-2">
+              <Link href={variant === "admin" ? "/admin/dashboard" : "/dashboard"} className="flex items-center" onClick={() => setMobileOpen(false)}>
+                <div className="w-5 h-5 rounded-[6px] bg-emerald-600 mr-3 shadow-sm shrink-0"></div>
+                <span className="font-bold text-[16px] text-emerald-600 tracking-tight leading-none">
+                  SkillBridge <span className="text-[#0F172A] font-semibold">{variant === "admin" ? "Admin" : "Workspace"}</span>
+                </span>
               </Link>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="md:hidden inline-flex h-11 w-11 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
+                className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500"
                 aria-label="Close navigation"
               >
                 <X className="h-4 w-4" />
@@ -133,8 +130,8 @@ export default function AppShell({ variant, title, subtitle, actions, children }
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-3 py-4">
-              <p className="px-3 pb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">Navigation</p>
+            <nav className="flex-1 px-3 pt-6">
+              <p className="px-3 pb-3 text-[11px] font-medium text-gray-400">Overview</p>
               <div className="space-y-0.5">
                 {navItems.map((item) => {
                   const hrefPath = item.href.split("#")[0];
@@ -149,9 +146,13 @@ export default function AppShell({ variant, title, subtitle, actions, children }
                       key={item.label}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "bg-green-50 text-green-700 border border-green-100" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}
+                      className={`flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+                        active 
+                          ? "bg-white text-emerald-700 shadow-[0_1px_3px_rgb(0,0,0,0.04)] border border-gray-200/50" 
+                          : "text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 border border-transparent"
+                      }`}
                     >
-                      <item.icon className={`h-4 w-4 ${active ? "text-green-600" : "text-gray-400"}`} />
+                      <item.icon className={`h-[15px] w-[15px] ${active ? "text-emerald-600" : "text-gray-400"}`} strokeWidth={active ? 2.5 : 2} />
                       <span>{item.label}</span>
                     </Link>
                   );
@@ -160,27 +161,14 @@ export default function AppShell({ variant, title, subtitle, actions, children }
             </nav>
 
             {/* User card — bottom */}
-            <div className="border-t border-gray-100 p-3">
-              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-600 text-xs font-bold text-white">
-                    {initials}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-gray-900">{user?.name}</p>
-                    <p className="truncate text-xs text-gray-500">{user?.email}</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="status-badge status-badge-success">
-                    {variant === "admin" ? "Admin" : "Student"}
-                  </span>
-                  <button onClick={logout} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-red-500 transition-colors">
-                    <LogOut className="h-3 w-3" />
-                    Sign out
-                  </button>
-                </div>
-              </div>
+            <div className="p-3 mb-2 border-t border-[#E2E8F0]/60 mx-3">
+              <button 
+                onClick={logout} 
+                className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/50 rounded-lg transition-colors w-full"
+              >
+                <LogOut size={15} strokeWidth={2} />
+                Log out
+              </button>
             </div>
           </div>
         </aside>
@@ -189,36 +177,45 @@ export default function AppShell({ variant, title, subtitle, actions, children }
         {mobileOpen && (
           <button
             aria-label="Close navigation overlay"
-            className="fixed inset-0 z-30 bg-black/30 md:hidden"
+            className="fixed inset-0 z-30 bg-[#0F172A]/20 backdrop-blur-sm md:hidden"
             onClick={() => setMobileOpen(false)}
           />
         )}
 
         {/* ─── Main Content ─── */}
-        <div className="flex min-h-screen flex-1 flex-col md:pl-[260px]">
+        <div className="flex min-h-screen flex-1 flex-col md:pl-[260px] bg-white">
           {/* Header */}
-          <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setMobileOpen(true)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 md:hidden"
-                  aria-label="Open navigation"
-                >
-                  <Menu className="h-4 w-4" />
-                </button>
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight text-gray-900 sm:text-xl">{title}</h1>
-                  {subtitle && <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>}
-                </div>
+          <header className="h-16 border-b border-[#E2E8F0] flex items-center justify-between px-6 lg:px-12 shrink-0 bg-white sticky top-0 z-20">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 -ml-2 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F8F9FA] hover:text-[#0F172A] md:hidden transition-colors"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
+              >
+                <Menu className="h-[18px] w-[18px]" strokeWidth={2.5} />
+              </button>
+              <div>
+                <h1 className="text-[18px] font-semibold tracking-tight text-[#0F172A] leading-tight">{title}</h1>
+                {subtitle && <p className="text-[13px] font-medium text-[#64748B] hidden sm:block mt-0.5">{subtitle}</p>}
               </div>
-              <div className="flex items-center gap-3">
-                {actions}
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {actions && <div className="flex items-center gap-3 mr-2">{actions}</div>}
+              
+              <div className="hidden sm:flex items-center gap-3 cursor-pointer hover:bg-[#F8F9FA] py-1.5 px-2 rounded-lg transition-colors border border-transparent hover:border-[#E2E8F0]/60">
+                 <div className="text-[13px] text-[#334155] font-medium">
+                   {user?.name || (variant === "admin" ? "Administrator" : "Student")}
+                 </div>
+                 <div className="w-7 h-7 bg-emerald-600 rounded-full flex items-center justify-center text-white font-medium text-[11px] shadow-sm">
+                   {initials}
+                 </div>
               </div>
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <main className="flex-1 px-6 py-8 md:px-12 lg:px-20 max-w-6xl w-full mx-auto">
             {children}
           </main>
         </div>

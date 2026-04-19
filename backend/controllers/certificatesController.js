@@ -2,7 +2,8 @@ const crypto = require('crypto');
 const prisma = require('../prisma');
 const paymentService = require('../services/payment.service');
 const { generateCertificateId } = require('../utils/generateCertificateId');
-const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
 
@@ -73,7 +74,7 @@ const reconcileSuccessfulPayment = async (payment, { notify = false } = {}) => {
       userName: payment.user.name,
       internshipTitle: internshipData.title,
       internshipDuration: internshipData.duration || '12 weeks'
-    }).catch(err => console.error('Enrollment email failed:', err.message));
+    }).catch((err) => logger.error('payments.enrollment_email_failed', { errorMessage: err?.message }));
   }
 
   return { enrollment, internshipData };
@@ -117,7 +118,8 @@ const markPaymentFailedEndpoint = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Failed to mark payment status: ${error.message}`, 500, 'PAYMENT_STATUS_UPDATE_FAILED'));
+    logger.error('payments.mark_failed.error', { errorMessage: error?.message });
+    next(internalError('Failed to mark payment status', 'PAYMENT_STATUS_UPDATE_FAILED', error));
   }
 };
 
@@ -138,10 +140,10 @@ const createOrder = async (req, res, next) => {
       internshipDescription,
     } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[CREATE ORDER] Start userId=${userId} internshipId=${internshipId || 'N/A'} amount=${amount}`);
+    logger.info('payments.create_order.start', { userId, internshipId: internshipId || null, amount });
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[createOrder] Received internship payload', {
+      logger.info('payments.create_order.payload', {
         userId,
         internshipId: internshipId || null,
         internshipTitle: internshipTitle || null,
@@ -166,7 +168,7 @@ const createOrder = async (req, res, next) => {
       });
 
       if (!internship) {
-        console.log('[createOrder] No internship found by id, will try title fallback', { internshipId });
+        logger.info('payments.create_order.internship_id_lookup_miss', { internshipId });
       }
     }
 
@@ -179,7 +181,7 @@ const createOrder = async (req, res, next) => {
       });
 
       if (internship) {
-        console.log('[createOrder] Internship resolved by title lookup', { internshipId: internship.id, internshipTitle });
+        logger.info('payments.create_order.internship_resolved_by_title', { internshipId: internship.id, internshipTitle });
       }
     }
 
@@ -188,26 +190,22 @@ const createOrder = async (req, res, next) => {
     // Accepting untrusted frontend data to create DB records was a security risk.
 
     if (!internship) {
-      console.log('[createOrder] Internship resolution failed', { internshipId, internshipTitle });
+      logger.warn('payments.create_order.internship_resolution_failed', { internshipId, internshipTitle });
       return next(new ApiError('Internship not found in database', 404, 'INTERNSHIP_NOT_FOUND'));
     }
 
     const resolvedInternshipId = internship.id;
 
+    // B2/B6 FIX: prices are stored in rupees in DB; convert to paise for Razorpay.
+    // REMOVED: the auto-update block that mutated internship.price in DB.
+    // Price is authoritative as stored — if it needs correction, do it via admin/seed.
     const normalizedInternshipPrice = normalizePriceToPaise(internship.price);
 
     if (normalizedInternshipPrice <= 0) {
       return next(new ApiError('This internship does not require payment', 400, 'PAYMENT_NOT_REQUIRED'));
     }
 
-    if (normalizedInternshipPrice !== internship.price) {
-      internship = await prisma.internship.update({
-        where: { id: internship.id },
-        data: { price: normalizedInternshipPrice },
-        select: { id: true, title: true, duration: true, level: true, domain: true, description: true, price: true },
-      });
-    }
-
+    // Validate frontend-sent amount matches DB price. Fail fast.
     if (amount && Math.round(amount * 100) !== normalizedInternshipPrice) {
       return next(new ApiError('Payment amount does not match internship price', 400, 'AMOUNT_MISMATCH', {
         expectedAmount: normalizedInternshipPrice / 100,
@@ -299,7 +297,7 @@ const createOrder = async (req, res, next) => {
         internshipId: resolvedInternshipId,
       }
     });
-    console.log(`[CREATE ORDER] DB insert OK paymentId=${payment.id} orderId=${order.id}`);
+    logger.info('payments.create_order.persisted', { paymentId: payment.id, orderId: order.id });
 
     res.json(ApiResponse.success(
       { orderId: order.id, paymentId: payment.id, amount: amountInPaise / 100, internshipId: resolvedInternshipId },
@@ -307,8 +305,9 @@ const createOrder = async (req, res, next) => {
       201
     ));
   } catch (error) {
-    const detail = error?.error?.description || error.message;
-    next(new ApiError(`Payment creation failed: ${detail}`, 500, 'ORDER_CREATION_FAILED', { razorpayError: detail }));
+    const detail = error?.error?.description || error?.message;
+    logger.error('payments.create_order.error', { errorMessage: error?.message, razorpayError: detail });
+    next(internalError('Payment creation failed', 'ORDER_CREATION_FAILED', error, detail ? { razorpayError: detail } : null));
   }
 };
 
@@ -321,7 +320,7 @@ const verifyPaymentEndpoint = async (req, res, next) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, paymentId, internshipId } = req.validatedBody;
     const userId = req.user?.id || null;
-    console.log(`[VERIFY PAYMENT] Start paymentId=${paymentId} orderId=${razorpay_order_id}`);
+    logger.info('payments.verify.start', { paymentId, orderId: razorpay_order_id });
 
     const paymentWhere = {
       id: paymentId,
@@ -411,7 +410,7 @@ const verifyPaymentEndpoint = async (req, res, next) => {
 
       await upsertEnrollmentForPayment(tx, payment);
     });
-    console.log(`[VERIFY PAYMENT] DB update OK paymentId=${payment.id} status=SUCCESS`);
+    logger.info('payments.verify.marked_success', { paymentId: payment.id });
 
     const refreshedPayment = await prisma.payment.findUnique({
       where: { id: payment.id },
@@ -434,8 +433,8 @@ const verifyPaymentEndpoint = async (req, res, next) => {
         userName: emailPayment.user.name,
         internshipTitle: internshipData.title,
         amount: emailPayment.amount / 100 // convert from paise to rupees
-      }).then(() => console.log(`[VERIFY PAYMENT] Receipt email queued to=${emailPayment.user.email}`))
-        .catch(err => console.error(`[VERIFY PAYMENT] Receipt email FAILED err=${err.message}`));
+      }).then(() => logger.info('payments.verify.receipt_email_queued', { email: emailPayment.user.email }))
+        .catch((err) => logger.error('payments.verify.receipt_email_failed', { errorMessage: err?.message }));
     }
 
     res.json(ApiResponse.success(
@@ -449,7 +448,8 @@ const verifyPaymentEndpoint = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Payment verification failed: ${error.message}`, 500, 'VERIFICATION_FAILED'));
+    logger.error('payments.verify.error', { errorMessage: error?.message });
+    next(internalError('Payment verification failed', 'VERIFICATION_FAILED', error));
   }
 };
 
@@ -461,7 +461,7 @@ const refundPaymentEndpoint = async (req, res, next) => {
   try {
     const { paymentId, amount, reason } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[REFUND] Start paymentId=${paymentId} userId=${userId}`);
+    logger.info('payments.refund.start', { paymentId, userId });
 
     if (!paymentService.razorpay) {
       return next(new ApiError('Payment gateway not configured', 503, 'GATEWAY_DOWN'));
@@ -507,7 +507,8 @@ const refundPaymentEndpoint = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    return next(new ApiError(`Refund failed: ${error.message}`, 500, 'REFUND_FAILED'));
+    logger.error('payments.refund.error', { paymentId: req.validatedBody?.paymentId, errorMessage: error?.message });
+    return next(internalError('Refund failed', 'REFUND_FAILED', error));
   }
 };
 
@@ -520,7 +521,7 @@ const generateCertificate = async (req, res, next) => {
   try {
     const { internshipId } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[GENERATE CERT] Start userId=${userId} internshipId=${internshipId}`);
+    logger.info('certificates.generate.start', { userId, internshipId });
 
     // Check internship exists
     const internship = await prisma.internship.findUnique({
@@ -589,7 +590,7 @@ const generateCertificate = async (req, res, next) => {
         isPaid: true
       }
     });
-    console.log(`[GENERATE CERT] DB insert OK certId=${certId}`);
+    logger.info('certificates.generate.persisted', { certificateId: certId });
 
     await prisma.userInternship.update({
       where: { userId_internshipId: { userId, internshipId } },
@@ -604,8 +605,8 @@ const generateCertificate = async (req, res, next) => {
         userName: user.name,
         internshipTitle: internship.title,
         certificateId: certId
-      }).then(() => console.log(`[GENERATE CERT] Email queued to=${user.email}`))
-        .catch(err => console.error(`[GENERATE CERT] Email FAILED err=${err.message}`));
+      }).then(() => logger.info('certificates.generate.email_queued', { email: user.email }))
+        .catch((err) => logger.error('certificates.generate.email_failed', { errorMessage: err?.message }));
     }
 
     res.json(ApiResponse.success(
@@ -614,7 +615,8 @@ const generateCertificate = async (req, res, next) => {
       201
     ));
   } catch (error) {
-    next(new ApiError(`Certificate generation failed: ${error.message}`, 500, 'GENERATION_FAILED'));
+    logger.error('certificates.generate.error', { errorMessage: error?.message });
+    next(internalError('Certificate generation failed', 'GENERATION_FAILED', error));
   }
 };
 
@@ -644,7 +646,8 @@ const downloadPdf = async (req, res, next) => {
 
     return res.redirect(302, redirectUrl);
   } catch (error) {
-    next(new ApiError(`Certificate redirect failed: ${error.message}`, 500, 'REDIRECT_FAILED'));
+    logger.error('certificates.redirect.error', { certificateId: req.params?.certificateId, errorMessage: error?.message });
+    next(internalError('Certificate redirect failed', 'REDIRECT_FAILED', error));
   }
 };
 
@@ -693,7 +696,8 @@ const downloadCertificate = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Certificate download failed: ${error.message}`, 500, 'DOWNLOAD_FAILED'));
+    logger.error('certificates.download.error', { certificateId: req.params?.id, errorMessage: error?.message });
+    next(internalError('Certificate download failed', 'DOWNLOAD_FAILED', error));
   }
 };
 
@@ -736,7 +740,8 @@ const verifyCertificate = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Certificate verification failed: ${error.message}`, 500, 'VERIFICATION_FAILED'));
+    logger.error('certificates.verify.error', { certificateId: req.params?.certificateId, errorMessage: error?.message });
+    next(internalError('Certificate verification failed', 'VERIFICATION_FAILED', error));
   }
 };
 
@@ -778,7 +783,8 @@ const getPublicCertificateById = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Certificate retrieval failed: ${error.message}`, 500, 'CERTIFICATE_FETCH_FAILED'));
+    logger.error('certificates.public_fetch.error', { certificateId: req.params?.certificateId, errorMessage: error?.message });
+    next(internalError('Certificate retrieval failed', 'CERTIFICATE_FETCH_FAILED', error));
   }
 };
 
@@ -793,27 +799,41 @@ const razorpayWebhook = async (req, res, next) => {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
     if (!secret) {
-      console.error('RAZORPAY_WEBHOOK_SECRET not configured');
+      logger.error('payments.webhook.secret_missing');
       return next(new ApiError('Webhook not configured', 503, 'WEBHOOK_NOT_CONFIGURED'));
     }
 
     // Verify webhook signature
+    const receivedSignature = String(req.headers['x-razorpay-signature'] || '').trim();
+    if (!receivedSignature) {
+      return res.status(400).json(ApiResponse.error('Missing webhook signature', 400, 'MISSING_SIGNATURE'));
+    }
+
     const shasum = crypto.createHmac('sha256', secret);
     const body = getWebhookBodyText(req.body);
     shasum.update(body);
     const digest = shasum.digest('hex');
 
-    if (digest !== req.headers['x-razorpay-signature']) {
-      console.warn('Webhook signature mismatch', {
-        expected: digest,
-        received: req.headers['x-razorpay-signature']
+    let signatureValid = false;
+    try {
+      const expectedBuffer = Buffer.from(digest, 'hex');
+      const receivedBuffer = Buffer.from(receivedSignature, 'hex');
+      signatureValid = expectedBuffer.length === receivedBuffer.length
+        && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    } catch {
+      signatureValid = false;
+    }
+
+    if (!signatureValid) {
+      logger.warn('payments.webhook.signature_mismatch', {
+        received: receivedSignature
       });
       return res.status(400).json(ApiResponse.error('Invalid webhook signature', 400, 'INVALID_SIGNATURE'));
     }
 
     const parsed = parseWebhookBody(req.body);
     const { event, payload } = parsed;
-    console.log(`[WEBHOOK] Received event=${event}`);
+    logger.info('payments.webhook.received', { event });
 
     if (event === 'payment.failed') {
       const paymentEntity = payload.payment.entity;
@@ -878,7 +898,7 @@ const razorpayWebhook = async (req, res, next) => {
         }
 
         await reconcileSuccessfulPayment(payment, { notify: !alreadySuccessful });
-        console.log(`[WEBHOOK] Payment processed orderId=${orderId} paymentId=${paymentId} alreadySuccess=${alreadySuccessful}`);
+        logger.info('payments.webhook.payment_processed', { orderId, paymentId, alreadySuccessful });
 
         if (!alreadySuccessful && payment.user) {
           const internshipData = payment.internship || (payment.certificate && payment.certificate.internship);
@@ -890,8 +910,8 @@ const razorpayWebhook = async (req, res, next) => {
               userName: payment.user.name,
               internshipTitle: internshipData.title,
               amount: payment.amount / 100
-            }).then(() => console.log(`[WEBHOOK] Receipt email queued`))
-              .catch(err => console.error(`[WEBHOOK] Receipt email FAILED err=${err.message}`));
+            }).then(() => logger.info('payments.webhook.receipt_email_queued', { orderId, paymentId }))
+              .catch((err) => logger.error('payments.webhook.receipt_email_failed', { errorMessage: err?.message }));
           }
         }
       }
@@ -899,8 +919,8 @@ const razorpayWebhook = async (req, res, next) => {
 
     res.json(ApiResponse.success({}, 'Webhook processed successfully', 200));
   } catch (error) {
-    console.error('Webhook processing error:', error);
-    next(new ApiError(`Webhook error: ${error.message}`, 500, 'WEBHOOK_ERROR'));
+    logger.error('payments.webhook.error', { errorMessage: error?.message });
+    next(internalError('Webhook error', 'WEBHOOK_ERROR', error));
   }
 };
 

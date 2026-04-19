@@ -5,6 +5,7 @@ import { ensureScreeningTable, listLeads, type ScreeningStatus } from "../../scr
 export const runtime = "nodejs";
 
 const validStatuses: ScreeningStatus[] = ["applied", "under_review", "selected", "converted"];
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 export async function GET(request: Request) {
   try {
@@ -30,6 +31,14 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("[API ERROR] [admin/screening-leads]", error);
-    return NextResponse.json({ success: false, message: "Failed to fetch screening leads" }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to fetch screening leads";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

@@ -1,5 +1,17 @@
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
+
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+function internalError(message, errorCode, error) {
+  return new ApiError(
+    message,
+    500,
+    errorCode,
+    isDevelopment ? { error: error?.message } : null
+  );
+}
 
 /**
  * Get tasks for internship with user's submission status
@@ -50,7 +62,8 @@ const getTasksByInternship = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Failed to fetch tasks: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('tasks.list.error', { internshipId: req.params?.internshipId, errorMessage: error?.message });
+    next(internalError('Failed to fetch tasks', 'FETCH_FAILED', error));
   }
 };
 
@@ -61,7 +74,7 @@ const submitTask = async (req, res, next) => {
   try {
     const { taskId, githubLink } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[TASK SUBMIT] Start userId=${userId} taskId=${taskId}`);
+    logger.info('tasks.submit.start', { userId, taskId });
 
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) {
@@ -98,7 +111,7 @@ const submitTask = async (req, res, next) => {
         updatedAt: new Date()
       }
     });
-    console.log(`[TASK SUBMIT] DB upsert OK submissionId=${submission.id} status=${submission.status}`);
+    logger.info('tasks.submit.persisted', { submissionId: submission.id, status: submission.status });
 
     res.json(ApiResponse.success(
       { submission },
@@ -106,7 +119,8 @@ const submitTask = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Submission failed: ${error.message}`, 500, 'SUBMISSION_FAILED'));
+    logger.error('tasks.submit.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Submission failed', 'SUBMISSION_FAILED', error));
   }
 };
 
@@ -118,7 +132,7 @@ const evaluateSubmission = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status, feedback } = req.validatedBody;
-    console.log(`[TASK EVALUATE] Start submissionId=${id} status=${status}`);
+    logger.info('tasks.evaluate.start', { submissionId: id, status });
 
     const submission = await prisma.submission.findUnique({
       where: { id },
@@ -136,7 +150,7 @@ const evaluateSubmission = async (req, res, next) => {
       where: { id },
       data: { status, feedback: feedback || null }
     });
-    console.log(`[TASK EVALUATE] DB update OK submissionId=${id} newStatus=${status}`);
+    logger.info('tasks.evaluate.updated', { submissionId: id, status });
 
     res.json(ApiResponse.success(
       { submission: updated },
@@ -144,7 +158,8 @@ const evaluateSubmission = async (req, res, next) => {
       200
     ));
   } catch (error) {
-    next(new ApiError(`Evaluation failed: ${error.message}`, 500, 'EVALUATION_FAILED'));
+    logger.error('tasks.evaluate.error', { submissionId: req.params?.id, errorMessage: error?.message });
+    next(internalError('Evaluation failed', 'EVALUATION_FAILED', error));
   }
 };
 

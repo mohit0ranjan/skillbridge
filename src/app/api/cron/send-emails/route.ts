@@ -3,6 +3,7 @@ import { getEmailService } from "../../screening/_lib/runtime";
 import { getPendingEmailQueue, markEmailQueueFailed, markEmailQueueSent } from "../../admin/_lib/emailQueue";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,6 +68,14 @@ export async function POST() {
     });
   } catch (error) {
     console.error("[cron/send-emails]", error);
-    return NextResponse.json({ success: false, message: "Cron send failed", error: String(error) }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Cron send failed";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

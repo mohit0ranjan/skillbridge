@@ -23,7 +23,6 @@ async function resolveEmail(request: Request) {
 export async function POST(request: Request) {
   try {
     const rawEmail = await resolveEmail(request);
-    console.log(`[CONFIRM CLICK] Start email=${rawEmail}`);
     if (!rawEmail) {
       return NextResponse.json({ success: false, message: "Email is required" }, { status: 400 });
     }
@@ -32,11 +31,8 @@ export async function POST(request: Request) {
 
     const updated = await markConfirmClicked(normalizeEmail(rawEmail));
     if (!updated) {
-      console.log(`[CONFIRM CLICK] FAIL Lead not found email=${rawEmail}`);
       return NextResponse.json({ success: false, message: "Lead not found" }, { status: 404 });
     }
-    
-    console.log(`[CONFIRM CLICK] DB update OK email=${rawEmail}`);
 
     return NextResponse.json({
       success: true,

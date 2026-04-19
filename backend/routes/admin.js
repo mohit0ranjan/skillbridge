@@ -10,7 +10,8 @@ const {
   getInternshipAnalytics,
   getDashboardOverview,
   getCertificates,
-  reviewFinalProjectSubmission
+  reviewFinalProjectSubmission,
+  sendAdminEmail
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -28,6 +29,9 @@ router.patch('/final-submission/:submissionId', validate('reviewFinalSubmission'
 // Users
 router.get('/user/:userId', getUserDetails);
 router.patch('/user/:userId/role', validate('updateUserRole'), updateUserRole);
+
+// Communications
+router.post('/send-email', validate('adminSendEmail'), sendAdminEmail);
 
 // Analytics
 router.get('/internship/:internshipId/analytics', getInternshipAnalytics);

@@ -9,6 +9,7 @@ import {
 } from "../_lib/store";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 export async function POST(request: Request) {
   try {
@@ -21,11 +22,9 @@ export async function POST(request: Request) {
 
     await ensureScreeningTable();
     const sanitized = sanitizeInput(payload as ScreeningLeadInput);
-    console.log(`[APPLY] Start email=${sanitized.email} name="${sanitized.name}"`);
 
     const existing = await findLeadByEmail(sanitized.email);
     if (existing) {
-      console.log(`[APPLY] BLOCKED Duplicate email=${sanitized.email}`);
       return NextResponse.json(
         { success: false, message: "Email already exists in screening funnel" },
         { status: 409 },
@@ -33,7 +32,6 @@ export async function POST(request: Request) {
     }
 
     const created = await createLead(sanitized);
-    console.log(`[APPLY] DB insert OK email=${sanitized.email}`);
     return NextResponse.json({
       success: true,
       message: "Screening application submitted",
@@ -43,8 +41,16 @@ export async function POST(request: Request) {
         status: created?.status ?? "applied",
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[screening/apply]", error);
-    return NextResponse.json({ success: false, message: "Failed to submit application", error: String(error), stack: error?.stack }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to submit application";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

@@ -1,6 +1,18 @@
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const { isDatabaseUnavailableError, getFallbackInternships, getFallbackInternshipById } = require('../utils/devFallback');
+
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+function internalError(message, errorCode, error) {
+  return new ApiError(
+    message,
+    500,
+    errorCode,
+    isDevelopment ? { error: error?.message } : null
+  );
+}
 
 /**
  * Get all internships with pagination support
@@ -69,7 +81,8 @@ const getAllInternships = async (req, res, next) => {
       ));
     }
 
-    next(new ApiError(`Failed to fetch internships: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('internships.list.error', { errorMessage: error?.message });
+    next(internalError('Failed to fetch internships', 'FETCH_FAILED', error));
   }
 };
 
@@ -113,7 +126,8 @@ const getInternshipById = async (req, res, next) => {
       return res.json(ApiResponse.success(internship, 'Internship retrieved successfully', 200));
     }
 
-    next(new ApiError(`Failed to fetch internship: ${error.message}`, 500, 'FETCH_FAILED'));
+    logger.error('internships.get_by_id.error', { internshipId: req.params?.id, errorMessage: error?.message });
+    next(internalError('Failed to fetch internship', 'FETCH_FAILED', error));
   }
 };
 

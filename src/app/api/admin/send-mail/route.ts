@@ -12,6 +12,7 @@ import {
 import { sendWithRetry } from "../_lib/sendWithRetry";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 type SendMailPayload = {
   email: string;
@@ -79,12 +80,35 @@ export async function POST(request: Request) {
       html,
     }, `admin-send-mail:${payload.type}`);
 
-    // Update database tracking
-    await recordEmailSent(normalizedEmail, payload.type);
+    // Update database tracking, but do not fail delivery if tracking is unavailable.
+    let trackingUpdated = false;
+    try {
+      const tracked = await recordEmailSent(normalizedEmail, payload.type);
+      trackingUpdated = Boolean(tracked);
+      if (!trackingUpdated) {
+        console.warn(`[admin/send-mail] tracking row not updated for ${normalizedEmail} (${payload.type})`);
+      }
+    } catch (trackingError) {
+      console.error(`[admin/send-mail] tracking update failed for ${normalizedEmail} (${payload.type})`, trackingError);
+    }
 
-    return NextResponse.json({ success: true, message: "Email sent successfully and status updated." });
+    return NextResponse.json({
+      success: true,
+      message: trackingUpdated
+        ? "Email sent successfully and status updated."
+        : "Email sent successfully.",
+      trackingUpdated,
+    });
   } catch (error) {
     console.error("[API ERROR] [admin/send-mail]", error);
-    return NextResponse.json({ success: false, message: "Failed to send email.", error: String(error) }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to send email.";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

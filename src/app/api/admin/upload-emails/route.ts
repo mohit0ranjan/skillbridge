@@ -3,6 +3,7 @@ import { getAdminAuthResult } from "../_lib/auth";
 import { upsertEmailQueue } from "../_lib/emailQueue";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 type UploadPayload = {
   rows?: Array<{ name?: string; email?: string }>;
@@ -70,6 +71,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[API ERROR] [admin/upload-emails]", error);
-    return NextResponse.json({ success: false, message: "Failed to upload emails", error: String(error) }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to upload emails";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

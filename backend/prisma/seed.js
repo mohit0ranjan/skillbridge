@@ -18,6 +18,10 @@ async function main() {
   await prisma.userInternship.deleteMany();
   await prisma.task.deleteMany();
   await prisma.ticket.deleteMany();
+  await prisma.workspaceSubmission.deleteMany();
+  await prisma.workspaceProgress.deleteMany();
+  await prisma.internProfile.deleteMany();
+  await prisma.workspaceProject.deleteMany();
   await prisma.internship.deleteMany();
   await prisma.user.deleteMany();
 
@@ -104,6 +108,42 @@ async function main() {
   });
 
   console.log('✅ Created 5 internships');
+
+  await prisma.workspaceProject.createMany({
+    data: [
+      {
+        title: 'Portfolio Landing Page',
+        difficulty: 'EASY',
+        description: 'Build and deploy a personal portfolio landing page with responsive sections and project highlights.',
+      },
+      {
+        title: 'API Data Visualizer',
+        difficulty: 'EASY',
+        description: 'Fetch data from a public API and visualize insights using charts in a polished frontend app.',
+      },
+      {
+        title: 'Auth-Enabled Task Tracker',
+        difficulty: 'MEDIUM',
+        description: 'Create a task tracker with authentication, protected routes, and CRUD operations.',
+      },
+      {
+        title: 'Mini E-Commerce Backend',
+        difficulty: 'MEDIUM',
+        description: 'Develop a backend for products, carts, and orders with role-based access and validations.',
+      },
+      {
+        title: 'Realtime Collaboration Board',
+        difficulty: 'HARD',
+        description: 'Implement a realtime project board with multi-user updates and conflict-safe state syncing.',
+      },
+      {
+        title: 'ML Insights Web App',
+        difficulty: 'HARD',
+        description: 'Deliver an end-to-end app that serves ML predictions with explainable result summaries.',
+      },
+    ],
+  });
+  console.log('✅ Seeded 6 workspace projects');
 
   // Create tasks for Digital Marketing
   const dmTasks = await Promise.all([

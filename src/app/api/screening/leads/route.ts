@@ -13,28 +13,46 @@ async function isAdminRequest(request: Request) {
   const backendBase = getBackendBaseUrl();
   if (!backendBase) return false;
 
-  try {
-    const response = await fetch(`${backendBase}/auth/me`, {
-      method: "GET",
-      headers: {
-        Authorization: authHeader,
-      },
-      cache: "no-store",
-    });
+  const withoutVersion = backendBase.endsWith("/api/v1")
+    ? backendBase.slice(0, -"/api/v1".length)
+    : backendBase;
 
-    if (!response.ok) return false;
+  const authUrls = [
+    `${backendBase}/auth/me`,
+    `${withoutVersion}/auth/me`,
+    `${withoutVersion}/api/v1/auth/me`,
+  ];
 
-    const body = (await response.json()) as { data?: { role?: string } };
-    return body?.data?.role === "ADMIN";
-  } catch {
-    return false;
+  const visited = new Set<string>();
+
+  for (const url of authUrls) {
+    if (visited.has(url)) continue;
+    visited.add(url);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: authHeader,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) continue;
+
+      const body = (await response.json()) as { data?: { role?: string } };
+      if (body?.data?.role === "ADMIN") return true;
+    } catch {
+      // Try the next candidate URL.
+    }
   }
+
+  return false;
 }
 
 export async function GET(request: Request) {
   try {
     const allowed = await isAdminRequest(request);
-    console.log(`[ADMIN LEADS] Access Check allowed=${allowed}`);
     if (!allowed) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
@@ -48,7 +66,6 @@ export async function GET(request: Request) {
       : undefined;
 
     const leads = await listLeads(status);
-    console.log(`[ADMIN LEADS] Fetched count=${leads.length} status=${status || "all"}`);
 
     return NextResponse.json({
       success: true,

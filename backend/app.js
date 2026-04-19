@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { ApiResponse, ApiError } = require('./utils/apiResponse');
+const logger = require('./utils/logger');
 const prisma = require('./prisma');
 
 const authRoutes = require('./routes/auth');
@@ -15,6 +16,7 @@ const learningRoutes = require('./routes/learning');
 const certificateRoutes = require('./routes/certificates');
 const ticketRoutes = require('./routes/tickets');
 const adminRoutes = require('./routes/admin');
+const workspaceRoutes = require('./routes/workspace');
 
 const app = express();
 
@@ -62,7 +64,7 @@ const corsOptions = {
     if (!origin) {
       return callback(null, true); // we check path in middleware
     }
-    console.warn(`Blocked by CORS: origin ${origin} not in allowed list [${allowedOrigins}]`);
+    logger.warn('cors.blocked_origin', { origin, allowedOrigins });
     callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -95,6 +97,16 @@ app.use(['/razorpay-webhook', '/webhooks/razorpay'], express.raw({ type: 'applic
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
+// Request timeout guard to prevent hung connections from consuming workers.
+app.use((req, res, next) => {
+  res.setTimeout(30000, () => {
+    if (!res.headersSent) {
+      res.status(504).json(ApiResponse.error('Request timed out', 504, 'REQUEST_TIMEOUT'));
+    }
+  });
+  next();
+});
+
 // ============================================
 // RATE LIMITING (M6 FIX: bounded limits instead of unbounded skip)
 // ============================================
@@ -120,8 +132,26 @@ const readOnlyLimiter = rateLimit({
 // Auth-specific rate limiter (stricter)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
-  message: 'Too many authentication attempts, please try again later.',
+  max: process.env.NODE_ENV === 'production' ? 10 : 50,
+  skipSuccessfulRequests: true,
+  message: 'Too many failed authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Payment endpoints are abuse-prone; enforce stricter per-IP throttling.
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 30 : 120,
+  message: 'Too many payment requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 120 : 400,
+  message: 'Too many admin requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -146,9 +176,14 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const log = `[${new Date().toISOString()}] [${req.id}] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`;
-    if (res.statusCode >= 400) {
-      console.error(log);
+    if (res.statusCode >= 400 || process.env.NODE_ENV !== 'production') {
+      logger.info('http.request', {
+        requestId: req.id,
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        durationMs: duration,
+      });
     }
   });
   next();
@@ -221,12 +256,14 @@ const apiRouter = express.Router();
 
 apiRouter.use('/auth', authLimiter, authRoutes);
 apiRouter.use('/internships', readOnlyLimiter, internshipRoutes);
+apiRouter.use(['/create-order', '/verify-payment', '/refund', '/payment-failed'], paymentLimiter);
 apiRouter.use('/', userRoutes);
 apiRouter.use('/', taskRoutes);
 apiRouter.use('/', learningRoutes);
 apiRouter.use('/', certificateRoutes);
 apiRouter.use('/', ticketRoutes);
-apiRouter.use('/admin', readOnlyLimiter, adminRoutes);
+apiRouter.use('/admin', adminLimiter, adminRoutes);
+apiRouter.use('/workspace', workspaceRoutes);
 
 app.use('/api/v1', apiRouter);
 // Backward compatibility: allow legacy clients that call unversioned routes (e.g. /auth/login).
@@ -286,7 +323,13 @@ app.use((err, req, res, next) => {
   }
 
   // Generic error handler
-  console.error('🔴 Unhandled error:', err);
+  logger.error('http.unhandled_error', {
+    requestId: req?.id,
+    method: req?.method,
+    path: req?.path,
+    errorName: err?.name,
+    errorMessage: err?.message,
+  });
   const response = ApiResponse.error(
     'Internal server error',
     500,

@@ -27,9 +27,72 @@ model User {
   certificates     Certificate[]
   payments         Payment[]
   tickets          Ticket[]
+  internProfile    InternProfile?
+  workspaceProgress WorkspaceProgress?
+  workspaceSubmissions WorkspaceSubmission[]
 
   @@index([email])
   @@index([role])
+}
+
+model WorkspaceProject {
+  id          String   @id @default(uuid())
+  title       String
+  difficulty  WorkspaceProjectDifficulty
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  internProfiles       InternProfile[]
+  workspaceSubmissions WorkspaceSubmission[]
+
+  @@index([difficulty])
+}
+
+model InternProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  selectedProjectId String?
+  internshipStart   DateTime?
+  internshipEnd     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedProject WorkspaceProject? @relation(fields: [selectedProjectId], references: [id], onDelete: SetNull)
+
+  @@index([selectedProjectId])
+}
+
+model WorkspaceProgress {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  week1     Boolean  @default(false)
+  week2     Boolean  @default(false)
+  week3     Boolean  @default(false)
+  week4     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceSubmission {
+  id          String                    @id @default(uuid())
+  userId      String
+  projectId   String
+  githubLink  String
+  status      WorkspaceSubmissionStatus @default(PENDING)
+  feedback    String?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project WorkspaceProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
 }
 
 model Internship {
@@ -194,6 +257,19 @@ model Ticket {
 enum Role {
   USER
   ADMIN
+  INTERN
+}
+
+enum WorkspaceProjectDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum WorkspaceSubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum UserInternshipStatus {

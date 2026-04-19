@@ -25,7 +25,9 @@ const adminOnly = async (req, res, next) => {
 };
 
 /**
- * Verify user is student
+ * Verify user is student or intern.
+ * B5 FIX: INTERN role must also be able to access student-guarded routes
+ * (dashboard, workspace, project submission, etc.).
  */
 const studentOnly = async (req, res, next) => {
   try {
@@ -35,7 +37,7 @@ const studentOnly = async (req, res, next) => {
       return next(new ApiError('Unauthorized', 401, 'UNAUTHORIZED'));
     }
 
-    if (role !== 'USER') {
+    if (!['USER', 'INTERN'].includes(role)) {
       return next(new ApiError('Forbidden: Student access required', 403, 'FORBIDDEN'));
     }
 

@@ -33,13 +33,17 @@ class ApiClient {
     return this.baseUrl;
   }
 
-  private shouldFallbackToLegacyBase(response: Response, json: any): boolean {
+  private shouldFallbackToLegacyBase(response: Response, json: any, path: string): boolean {
     if (this.triedLegacyBaseFallback) return false;
     if (!this.baseUrl.endsWith('/api/v1')) return false;
     if (response.status !== 404) return false;
 
     const message = String(json?.message || '').toLowerCase();
-    return message.includes('route') && message.includes('/api/v1');
+    if (message.includes('route') && message.includes('/api/v1')) return true;
+
+    // Some production deployments return empty/non-JSON 404 bodies.
+    // Fall back for auth endpoints when /api/v1 is likely unsupported.
+    return path.startsWith('/auth/');
   }
 
   private getToken(): string | null {
@@ -106,7 +110,7 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      if (this.shouldFallbackToLegacyBase(response, json)) {
+      if (this.shouldFallbackToLegacyBase(response, json, path)) {
         this.triedLegacyBaseFallback = true;
         this.baseUrl = this.getLegacyBaseUrl();
         return this.request<T>(path, options);
@@ -510,16 +514,18 @@ export type AdminSubmission = {
     email: string;
     college?: string | null;
   };
-  task: {
+  internship: {
     id: string;
     title: string;
-    internshipId: string;
-    week: number;
+    domain: string;
   };
-  githubLink: string;
+  projectTitle: string;
+  projectLink: string;
+  description: string;
+  fileUrl?: string | null;
   status: string;
   feedback?: string | null;
-  createdAt: string;
+  submittedAt: string;
 };
 
 export type AdminUserDetail = {

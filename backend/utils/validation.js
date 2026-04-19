@@ -128,7 +128,43 @@ const schemas = {
 
   // Admin - user management
   updateUserRole: Joi.object({
-    role: Joi.string().valid('USER', 'ADMIN').required(),
+    role: Joi.string().valid('USER', 'ADMIN', 'INTERN').required(),
+  }),
+
+  // Admin - CRM Email Dispatch
+  adminSendEmail: Joi.object({
+    userId: Joi.string().uuid().required(),
+    templateType: Joi.string().valid('SELECTION', 'PAYMENT', 'OFFER', 'ONBOARDING', 'REJECTION').required(),
+    params: Joi.object().optional(),
+  }),
+
+  workspaceCreateUser: Joi.object({
+    name: Joi.string().min(2).max(100).required().trim(),
+    email: Joi.string().email().required().lowercase(),
+    password: Joi.string().min(8).max(50).required()
+      .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+      .message('Password must contain uppercase, lowercase, number, and special char'),
+    internshipStart: Joi.date().iso().optional().allow(null),
+    internshipEnd: Joi.date().iso().optional().allow(null),
+  }),
+
+  workspaceSelectProject: Joi.object({
+    projectId: Joi.string().uuid().required(),
+  }),
+
+  workspaceUpdateProgress: Joi.object({
+    week: Joi.number().integer().min(1).max(4).required(),
+    status: Joi.boolean().required(),
+  }),
+
+  workspaceSubmit: Joi.object({
+    githubLink: Joi.string().uri().required(),
+  }),
+
+  workspaceAdminReview: Joi.object({
+    submissionId: Joi.string().uuid().required(),
+    status: Joi.string().valid('approved', 'rejected', 'APPROVED', 'REJECTED').required(),
+    feedback: Joi.string().max(5000).optional().allow(null, ''),
   }),
 };
 

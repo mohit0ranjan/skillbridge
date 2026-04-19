@@ -1,45 +1,59 @@
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
 const { getProjectSubmissionEmailHtml } = require('../utils/emailTemplates');
 const { generateCertificateId } = require('../utils/generateCertificateId');
 const { buildCurriculumTasks, groupTasksByWeek } = require('../utils/internshipCurriculum');
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+function internalError(message, errorCode, error) {
+  return new ApiError(
+    message,
+    500,
+    errorCode,
+    isDevelopment ? { error: error?.message } : null
+  );
+}
+
 async function createOrReturnCertificate({ userId, internshipId }) {
-  console.log(`[CERTIFICATE AUTO-GEN] Start userId=${userId} internshipId=${internshipId}`);
-  const finalSubmission = await prisma.finalProjectSubmission.findUnique({
-    where: { userId_internshipId: { userId, internshipId } },
-  });
+  logger.info('learning.certificate_autogen.start', { userId, internshipId });
+  const certificate = await prisma.$transaction(async (tx) => {
+    const finalSubmission = await tx.finalProjectSubmission.findUnique({
+      where: { userId_internshipId: { userId, internshipId } },
+    });
 
-  if (!finalSubmission || finalSubmission.status !== 'APPROVED') {
-    throw new ApiError('Final project must be approved before certificate generation', 409, 'SUBMISSION_NOT_APPROVED');
-  }
-
-  const existing = await prisma.certificate.findUnique({
-    where: { userId_internshipId: { userId, internshipId } },
-  });
-
-  if (existing) {
-    if (!existing.isPaid) {
-      return prisma.certificate.update({
-        where: { id: existing.id },
-        data: { isPaid: true },
-      });
+    if (!finalSubmission || finalSubmission.status !== 'APPROVED') {
+      throw new ApiError('Final project must be approved before certificate generation', 409, 'SUBMISSION_NOT_APPROVED');
     }
 
-    return existing;
-  }
+    const existing = await tx.certificate.findUnique({
+      where: { userId_internshipId: { userId, internshipId } },
+    });
 
-  const certificate = await prisma.certificate.create({
-    data: {
-      userId,
-      internshipId,
-      certificateId: generateCertificateId(),
-      isPaid: true,
-    },
+    if (existing) {
+      if (!existing.isPaid) {
+        return tx.certificate.update({
+          where: { id: existing.id },
+          data: { isPaid: true },
+        });
+      }
+
+      return existing;
+    }
+
+    return tx.certificate.create({
+      data: {
+        userId,
+        internshipId,
+        certificateId: generateCertificateId(),
+        isPaid: true,
+      },
+    });
   });
-  console.log(`[CERTIFICATE AUTO-GEN] Created certId=${certificate.certificateId}`);
+  logger.info('learning.certificate_autogen.created', { certificateId: certificate.certificateId });
 
   // Fetch info carefully for email
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -50,8 +64,8 @@ async function createOrReturnCertificate({ userId, internshipId }) {
       userName: user.name,
       internshipTitle: internship.title,
       certificateId: certificate.certificateId
-    }).then(() => console.log(`[CERTIFICATE AUTO-GEN] Email queued to=${user.email}`))
-      .catch(err => console.error(`[CERTIFICATE AUTO-GEN] Email FAILED err=${err.message}`));
+    }).then(() => logger.info('learning.certificate_autogen.email_queued', { email: user.email }))
+      .catch((err) => logger.error('learning.certificate_autogen.email_failed', { errorMessage: err?.message }));
   }
 
   return certificate;
@@ -131,7 +145,8 @@ const getLearningPlan = async (req, res, next) => {
       200,
     ));
   } catch (error) {
-    next(new ApiError(`Failed to load learning plan: ${error.message}`, 500, 'PLAN_FAILED'));
+    logger.error('learning.plan.error', { internshipId: req.params?.internshipId, errorMessage: error?.message });
+    next(internalError('Failed to load learning plan', 'PLAN_FAILED', error));
   }
 };
 
@@ -139,7 +154,7 @@ const markWeekComplete = async (req, res, next) => {
   try {
     const { internshipId, weekNumber } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[WEEK COMPLETE] userId=${userId} internshipId=${internshipId} week=${weekNumber}`);
+    logger.info('learning.week_complete.start', { userId, internshipId, weekNumber });
 
     const enrollment = await prisma.userInternship.findUnique({
       where: { userId_internshipId: { userId, internshipId } },
@@ -168,7 +183,8 @@ const markWeekComplete = async (req, res, next) => {
       200,
     ));
   } catch (error) {
-    next(new ApiError(`Failed to update progress: ${error.message}`, 500, 'PROGRESS_FAILED'));
+    logger.error('learning.week_complete.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Failed to update progress', 'PROGRESS_FAILED', error));
   }
 };
 
@@ -176,7 +192,7 @@ const submitProject = async (req, res, next) => {
   try {
     const { internshipId, projectTitle, projectLink, description, fileUrl } = req.validatedBody;
     const userId = req.user.id;
-    console.log(`[PROJECT SUBMIT] Start userId=${userId} internshipId=${internshipId} title="${projectTitle}"`);
+    logger.info('learning.project_submit.start', { userId, internshipId, projectTitle });
 
     const internship = await prisma.internship.findUnique({
       where: { id: internshipId },
@@ -227,7 +243,7 @@ const submitProject = async (req, res, next) => {
         submittedAt: new Date(),
       },
     });
-    console.log(`[PROJECT SUBMIT] DB upsert OK submissionId=${submission.id} status=${submission.status}`);
+    logger.info('learning.project_submit.persisted', { submissionId: submission.id, status: submission.status });
 
     const taskWeeks = internship.tasks.length > 0 ? [...new Set(internship.tasks.map((task) => task.week))].length : buildCurriculumTasks(internship).length;
     const completedWeeks = Math.max(enrollment.completedWeeks || 0, taskWeeks);
@@ -255,8 +271,8 @@ const submitProject = async (req, res, next) => {
           internshipTitle: internship.title,
           dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`,
         }),
-      }).then(() => console.log(`[PROJECT SUBMIT] Email queued to=${user.email}`))
-        .catch((error) => console.error(`[PROJECT SUBMIT] Email FAILED err=${error.message}`));
+      }).then(() => logger.info('learning.project_submit.email_queued', { email: user.email }))
+        .catch((error) => logger.error('learning.project_submit.email_failed', { errorMessage: error?.message }));
     }
 
     res.status(201).json(ApiResponse.success(
@@ -277,7 +293,8 @@ const submitProject = async (req, res, next) => {
       201,
     ));
   } catch (error) {
-    next(new ApiError(`Project submission failed: ${error.message}`, 500, 'SUBMISSION_FAILED'));
+    logger.error('learning.project_submit.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Project submission failed', 'SUBMISSION_FAILED', error));
   }
 };
 

@@ -1,5 +1,6 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 let razorpayInstance = null;
 
@@ -35,7 +36,7 @@ const getRazorpayClient = () => {
     razorpayInstance.__skillbridgeKeySecret = razorpayKeySecret;
 
     if (razorpayMode === 'live' && /^rzp_test_/i.test(razorpayKeyId)) {
-      console.warn('⚠️ Razorpay live mode is enabled, but a test key ID is configured. Update RAZORPAY_KEY_ID_LIVE / RAZORPAY_KEY_SECRET_LIVE.');
+      logger.warn('payments.razorpay.live_mode_test_key', { razorpayMode, keyIdPrefix: String(razorpayKeyId).slice(0, 8) });
     }
   }
 
@@ -98,13 +99,13 @@ const createRefund = async (razorpayPaymentId, refundPayload = {}) => {
   const client = getRazorpayClient();
 
   if (!client || !razorpayPaymentId) {
-    console.error('[REFUND] Cannot create refund: missing client or paymentId');
+    logger.error('payments.refund.missing_client_or_payment_id', { hasClient: Boolean(client), hasPaymentId: Boolean(razorpayPaymentId) });
     return null;
   }
 
-  console.log(`[REFUND] Initiating refund for ${razorpayPaymentId}`, refundPayload);
+  logger.info('payments.refund.start', { razorpayPaymentId, hasPayload: Boolean(refundPayload && Object.keys(refundPayload).length) });
   const refund = await client.payments.refund(razorpayPaymentId, refundPayload);
-  console.log(`[REFUND] Refund created: ${refund.id} status=${refund.status}`);
+  logger.info('payments.refund.created', { refundId: refund.id, status: refund.status });
   return refund;
 };
 

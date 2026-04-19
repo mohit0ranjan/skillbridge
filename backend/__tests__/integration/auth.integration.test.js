@@ -131,6 +131,20 @@ describe('Auth API Integration', () => {
       expect(response.body.message).toBe('If email exists, password reset link sent');
       expect(emailService.send).not.toHaveBeenCalled();
     });
+
+    it('does not leak internal error details on server failure', async () => {
+      prisma.user.findUnique.mockRejectedValue(new Error('database unavailable: connection refused'));
+
+      const response = await request(app)
+        .post(apiPath('/auth/request-password-reset'))
+        .send({ email: 'john@example.com' });
+
+      expect(response.status).toBe(500);
+      expect(response.body.success).toBe(false);
+      expect(response.body.errorCode).toBe('RESET_REQUEST_FAILED');
+      expect(response.body.message).toBe('Password reset request failed');
+      expect(response.body.details).toBeUndefined();
+    });
   });
 
   describe('POST /auth/reset-password', () => {

@@ -7,6 +7,7 @@ import { getOfferAttachmentEmailHtml } from "../_lib/emailTemplates";
 import { sendWithRetry } from "../_lib/sendWithRetry";
 
 export const runtime = "nodejs";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 const require = createRequire(import.meta.url);
 const { generateOfferLetterPdf } = require("../../../../../backend/utils/offerLetterPdf");
@@ -60,7 +61,11 @@ export async function POST(request: Request) {
       ],
     }, "admin-generate-offer-letter");
 
-    await recordEmailSent(normalizedEmail, "offer");
+    try {
+      await recordEmailSent(normalizedEmail, "offer");
+    } catch (trackingError) {
+      console.error(`[admin/generate-offer-letter] tracking update failed for ${normalizedEmail}`, trackingError);
+    }
 
     return NextResponse.json({
       success: true,
@@ -74,6 +79,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[API ERROR] [admin/generate-offer-letter]", error);
-    return NextResponse.json({ success: false, message: "Failed to generate offer letter", error: String(error) }, { status: 500 });
+    const message = isDevelopment && error instanceof Error ? error.message : "Failed to generate offer letter";
+    return NextResponse.json(
+      {
+        success: false,
+        message,
+        ...(isDevelopment ? { error: String(error) } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

@@ -1,6 +1,18 @@
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const { emailService } = require('../services/email.service');
+const logger = require('../utils/logger');
+
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+function internalError(message, errorCode, error) {
+  return new ApiError(
+    message,
+    500,
+    errorCode,
+    isDevelopment ? { error: error?.message } : null
+  );
+}
 
 const createTicket = async (req, res, next) => {
   try {
@@ -27,11 +39,12 @@ const createTicket = async (req, res, next) => {
         status: 'OPEN'
       }
     });
-    console.log(`[TICKET CREATE] DB insert OK ticketId=${ticket.id} userId=${userId}`);
+    logger.info('tickets.create.success', { ticketId: ticket.id, userId });
 
     res.status(201).json(ApiResponse.success(ticket, 'Ticket created successfully', 201));
   } catch (error) {
-    next(new ApiError(`Failed to create ticket: ${error.message}`, 500, 'TICKET_CREATE_FAILED'));
+    logger.error('tickets.create.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Failed to create ticket', 'TICKET_CREATE_FAILED', error));
   }
 };
 
@@ -46,7 +59,8 @@ const getTickets = async (req, res, next) => {
 
     res.json(ApiResponse.success(tickets, 'Tickets retrieved successfully', 200));
   } catch (error) {
-    next(new ApiError(`Failed to fetch tickets: ${error.message}`, 500, 'TICKETS_FETCH_FAILED'));
+    logger.error('tickets.list_user.error', { userId: req.user?.id, errorMessage: error?.message });
+    next(internalError('Failed to fetch tickets', 'TICKETS_FETCH_FAILED', error));
   }
 };
 
@@ -63,7 +77,8 @@ const getAllTickets = async (req, res, next) => {
 
     res.json(ApiResponse.success(tickets, 'Tickets retrieved successfully', 200));
   } catch (error) {
-    next(new ApiError(`Failed to fetch tickets: ${error.message}`, 500, 'TICKETS_FETCH_FAILED'));
+    logger.error('tickets.list_admin.error', { status: req.query?.status, errorMessage: error?.message });
+    next(internalError('Failed to fetch tickets', 'TICKETS_FETCH_FAILED', error));
   }
 };
 
@@ -86,14 +101,15 @@ const updateTicketStatus = async (req, res, next) => {
     if (error.code === 'P2025') {
       return next(new ApiError('Ticket not found', 404, 'TICKET_NOT_FOUND'));
     }
-    next(new ApiError(`Failed to update ticket: ${error.message}`, 500, 'TICKET_UPDATE_FAILED'));
+    logger.error('tickets.update_status.error', { ticketId: req.params?.id, errorMessage: error?.message });
+    next(internalError('Failed to update ticket', 'TICKET_UPDATE_FAILED', error));
   }
 };
 
 const replyToTicket = async (req, res, next) => {
   try {
     const { ticketId, reply, status } = req.validatedBody;
-    console.log(`[TICKET REPLY] Start ticketId=${ticketId}`);
+    logger.info('tickets.reply.start', { ticketId });
 
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
@@ -113,7 +129,7 @@ const replyToTicket = async (req, res, next) => {
       },
       include: { user: { select: { id: true, name: true, email: true } } },
     });
-    console.log(`[TICKET REPLY] DB update OK ticketId=${ticketId} newStatus=${updatedTicket.status}`);
+    logger.info('tickets.reply.updated', { ticketId, status: updatedTicket.status });
 
     let emailSent = false;
     try {
@@ -124,14 +140,15 @@ const replyToTicket = async (req, res, next) => {
         replyMessage: reply.trim(),
       });
       emailSent = true;
-      console.log(`[TICKET REPLY] Email sent to=${updatedTicket.user.email}`);
+      logger.info('tickets.reply.email_sent', { ticketId, email: updatedTicket.user.email });
     } catch (emailError) {
-      console.error('Support reply email failed:', emailError.message);
+      logger.error('tickets.reply.email_failed', { ticketId, errorMessage: emailError?.message });
     }
 
     res.json(ApiResponse.success({ ...updatedTicket, emailSent }, 'Reply sent successfully', 200));
   } catch (error) {
-    next(new ApiError(`Failed to reply to ticket: ${error.message}`, 500, 'TICKET_REPLY_FAILED'));
+    logger.error('tickets.reply.error', { ticketId: req.validatedBody?.ticketId, errorMessage: error?.message });
+    next(internalError('Failed to reply to ticket', 'TICKET_REPLY_FAILED', error));
   }
 };
 

@@ -25,8 +25,10 @@ router.post('/generate-certificate', protect, validate('generateCertificate'), g
 router.get('/certificate/:id', protect, downloadCertificate);
 
 // Public routes (no auth required)
-router.get('/api/certificate/:certificateId', getPublicCertificateById);
-router.get('/api/certificate/:certificateId/pdf', downloadPdf);
+// B7 FIX: removed erroneous /api prefix from sub-routes
+// (router already mounted under /api/v1, so /api would produce /api/v1/api/...)
+router.get('/public/certificate/:certificateId', getPublicCertificateById);
+router.get('/public/certificate/:certificateId/pdf', downloadPdf);
 router.get('/verify/:certificateId', verifyCertificate);
 router.get('/certificate/:certificateId/pdf', downloadPdf);
 router.post('/razorpay-webhook', razorpayWebhook);

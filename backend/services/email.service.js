@@ -5,6 +5,7 @@
 
 const nodemailer = require('nodemailer');
 const { ApiError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const {
   getCertificateDeliveryEmailHtml,
   getEnrollmentConfirmationEmailHtml,
@@ -13,11 +14,22 @@ const {
   getWelcomeEmailHtml,
 } = require('../utils/emailTemplates');
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 class EmailService {
   constructor() {
     this.transporter = null;
     this.senderAddress = null;
     this.initializeTransporter();
+  }
+
+  internalSendError(error) {
+    return new ApiError(
+      'Failed to send email',
+      500,
+      'EMAIL_SEND_ERROR',
+      isDevelopment ? { error: error?.message || 'unknown error' } : null
+    );
   }
 
   initializeTransporter() {
@@ -31,10 +43,10 @@ class EmailService {
 
     // Development mode with no credentials: Log to console
     if (process.env.NODE_ENV === 'development' && (!smtpUser || !smtpPass)) {
-      console.log('[EMAIL] Console mode (dev, no credentials)');
+      logger.info('email.init.console_mode_dev');
       this.transporter = {
         sendMail: async (options) => {
-          console.log('[EMAIL] CONSOLE LOG:', {
+          logger.info('email.console_send', {
             from: options.from,
             to: options.to,
             subject: options.subject,
@@ -62,20 +74,20 @@ class EmailService {
       };
 
       this.transporter = nodemailer.createTransport(transportConfig);
-      console.log(`[EMAIL] Configured: ${transportConfig.host}:${transportConfig.port} as ${smtpUser}`);
+      logger.info('email.init.smtp_configured', { host: transportConfig.host, port: transportConfig.port, user: smtpUser });
 
       // Verify connection on startup (non-blocking)
       this.transporter.verify()
-        .then(() => console.log('[EMAIL] SMTP connection verified ✅'))
-        .catch((err) => console.error('[EMAIL] SMTP verify FAILED ❌:', err.message));
+        .then(() => logger.info('email.init.smtp_verified'))
+        .catch((err) => logger.error('email.init.smtp_verify_failed', { errorMessage: err?.message }));
       return;
     }
 
     // Fallback: console mode
-    console.warn('[EMAIL] No credentials configured. Using console mode.');
+    logger.warn('email.init.console_mode_fallback');
     this.transporter = {
       sendMail: async (options) => {
-        console.log('[EMAIL] DEV:', {
+        logger.info('email.console_send_fallback', {
           from: options.from,
           to: options.to,
           subject: options.subject,
@@ -193,12 +205,12 @@ class EmailService {
    */
   async send({ to, subject, html, attachments = [] }) {
     if (!this.transporter) {
-      console.error('[EMAIL] FAIL: transporter not configured');
+      logger.error('email.send.transporter_missing');
       throw new ApiError('Email service not configured', 500, 'EMAIL_CONFIG_ERROR');
     }
 
     if (!to || !subject || !html) {
-      console.error('[EMAIL] FAIL: missing params', { to: !!to, subject: !!subject, html: !!html });
+      logger.error('email.send.invalid_params', { hasTo: !!to, hasSubject: !!subject, hasHtml: !!html });
       throw new ApiError('Missing email parameters', 400, 'INVALID_EMAIL_PARAMS');
     }
 
@@ -215,13 +227,13 @@ class EmailService {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`[EMAIL] Sending to=${to} subject="${subject}" attempt=${attempt}`);
+        logger.info('email.send.attempt', { to, subject, attempt });
         const info = await this.transporter.sendMail(mailOptions);
-        console.log(`[EMAIL SENT] to=${to} messageId=${info.messageId} attempt=${attempt}`);
+        logger.info('email.send.success', { to, messageId: info.messageId, attempt });
         return info;
       } catch (error) {
         lastError = error;
-        console.error(`[EMAIL FAILED] to=${to} attempt=${attempt} err=${error.message}`);
+        logger.error('email.send.failed_attempt', { to, attempt, errorMessage: error?.message });
 
         if (attempt < maxAttempts) {
           await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
@@ -229,7 +241,7 @@ class EmailService {
       }
     }
 
-    throw new ApiError(`Failed to send email: ${lastError?.message || 'unknown error'}`, 500, 'EMAIL_SEND_ERROR');
+    throw this.internalSendError(lastError);
   }
 }
 

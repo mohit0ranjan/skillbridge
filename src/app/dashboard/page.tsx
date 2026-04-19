@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, BadgeCheck, CheckCircle2, Loader2, RefreshCw, Sparkles, Target, ShieldCheck, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
-import { api } from "@/lib/api";
+import { api, DashboardData } from "@/lib/api";
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -26,7 +26,7 @@ function TinyPill({ children, highlight = false }: { children: React.ReactNode, 
 
 export default function DashboardPage() {
   const [paymentFailed, setPaymentFailed] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openWeek, setOpenWeek] = useState<number | null>(null);
@@ -67,7 +67,7 @@ export default function DashboardPage() {
     }
   }, [openWeek, weeks]);
 
-  const currentWeek = useMemo(() => weeks.find((week: any) => week.week === openWeek) || weeks[0], [openWeek, weeks]);
+  const currentWeek = useMemo(() => weeks.find((week) => week.week === openWeek) || weeks[0], [openWeek, weeks]);
 
   const handleMarkWeekComplete = async (weekNumber: number) => {
     if (!enrollment) return;
@@ -185,7 +185,7 @@ export default function DashboardPage() {
               </h3>
               
               <div className="space-y-3">
-                {weeks.map((week: any) => {
+                {weeks.map((week) => {
                   const isOpen = currentWeek?.week === week.week;
                   const isDone = completedWeeks >= week.week;
 
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                       {isOpen && (
                         <div className="border-t border-gray-100 px-5 py-4 bg-white rounded-b-xl">
                           <div className="space-y-3">
-                            {week.tasks.map((task: any, idx: number) => (
+                            {week.tasks.map((task, idx: number) => (
                               <div key={task.id || idx} className="dash-inner">
                                 <p className="text-sm font-semibold text-gray-900 mb-1">{task.title}</p>
                                 <p className="text-sm text-gray-600">{task.description}</p>
@@ -278,7 +278,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-900 mb-1">ID: {certificate.certificateId}</p>
                     <p className="text-xs text-gray-500 mb-4">Issued on {new Date(certificate.issuedDate).toLocaleDateString()}</p>
-                    <Link href="/certificate" className="btn-primary w-full text-center text-sm py-2 gap-2">
+                    <Link href={`/certificate/${certificate.certificateId}`} className="btn-primary w-full text-center text-sm py-2 gap-2">
                       <Download className="h-4 w-4" /> Download
                     </Link>
                   </div>
