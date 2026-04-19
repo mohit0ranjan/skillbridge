@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import AppShell from "@/components/AppShell";
+
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -92,7 +92,7 @@ function VerifyEmailLogic() {
 
 export default function VerifyEmailPage() {
   return (
-    <AppShell variant="public">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       <div className="min-h-[80vh] flex flex-col justify-center px-4 py-12">
         <Suspense fallback={
           <div className="card max-w-md mx-auto p-8 text-center text-gray-500">
@@ -102,6 +102,6 @@ export default function VerifyEmailPage() {
           <VerifyEmailLogic />
         </Suspense>
       </div>
-    </AppShell>
+    </div>
   );
 }

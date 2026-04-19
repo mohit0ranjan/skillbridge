@@ -163,6 +163,14 @@ class ApiClient {
     return this.request<UserProfile>('/auth/me');
   }
 
+  async resetPassword(body: { token: string; newPassword: string }) {
+    return this.request<GenericResponse>('/auth/reset-password', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async verifyEmail(body: { token: string }) {
+    return this.request<GenericResponse>('/auth/verify-email', { method: 'POST', body: JSON.stringify(body) });
+  }
+
   // Internships
   async getInternships() {
     return this.request<Internship[]>('/internships');
@@ -191,7 +199,8 @@ class ApiClient {
     if (filters?.status) query.set('status', filters.status);
     if (filters?.internshipId) query.set('internshipId', filters.internshipId);
     const queryString = query.toString();
-    return this.request<AdminSubmission[]>(`/admin/submissions${queryString ? `?${queryString}` : ''}`);
+    const response = await this.request<any>(`/admin/submissions${queryString ? `?${queryString}` : ''}`);
+    return (response.items || response) as AdminSubmission[];
   }
 
   async getAdminInternshipAnalytics(internshipId: string) {

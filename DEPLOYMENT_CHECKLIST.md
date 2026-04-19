@@ -29,8 +29,10 @@ Click **+ New application setting** and add these (one by one):
 | `JWT_VERIFY_EMAIL_SECRET` | From backend/.env | Copy from .env |
 | `RAZORPAY_KEY_ID` | From backend/.env | Copy from .env |
 | `RAZORPAY_KEY_SECRET` | From backend/.env | Copy from .env |
-| `EMAIL_USER` | From backend/.env | Copy from .env |
-| `EMAIL_PASS` | From backend/.env | Copy from .env |
+| `SMTP_USER` | From backend/.env | Preferred (mail auth user) |
+| `SMTP_PASS` | From backend/.env | Preferred (mail auth password) |
+| `EMAIL_USER` | From backend/.env | Legacy fallback (optional) |
+| `EMAIL_PASS` | From backend/.env | Legacy fallback (optional) |
 
 ### Step 2: Save Settings
 Click **Save** at the top of the Configuration page.
