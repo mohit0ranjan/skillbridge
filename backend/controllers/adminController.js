@@ -505,56 +505,14 @@ const getCertificates = async (req, res, next) => {
  */
 const getScreeningLeads = async (req, res, next) => {
   try {
-    const rows = await prisma.screeningSubmission.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            college: true,
-            year: true,
-            role: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    });
+    const rows = await prisma.$queryRaw`
+      SELECT id, name, email, phone, college, year, branch, status, test_submitted, test_score, email_sent, clicked_confirm, converted, selection_mail_sent, payment_mail_sent, offer_sent, onboarding_sent, certificate_issued, created_at
+      FROM screening_leads
+      ORDER BY created_at DESC
+      LIMIT 1000
+    `;
 
-    const mapped = rows.map((row) => {
-      const statusMap = {
-        SUBMITTED: 'applied',
-        UNDER_REVIEW: 'under_review',
-        SELECTED: 'selected',
-        REJECTED: 'rejected',
-      };
-
-      return {
-        id: row.id,
-        userId: row.userId,
-        name: row.user?.name || 'Unknown',
-        email: row.user?.email || '',
-        phone: '',
-        college: row.user?.college || '',
-        year: row.user?.year || '',
-        branch: '',
-        status: statusMap[row.status] || 'applied',
-        test_submitted: true,
-        test_score: row.score,
-        email_sent: false,
-        clicked_confirm: false,
-        selection_mail_sent: false,
-        payment_mail_sent: false,
-        offer_sent: false,
-        onboarding_sent: false,
-        certificate_issued: false,
-        converted: (row.user?.role || '') === 'INTERN',
-        created_at: row.createdAt,
-      };
-    });
-
-    res.json(ApiResponse.success(mapped, 'Screening leads retrieved successfully', 200));
+    res.json(ApiResponse.success(rows, 'Screening leads retrieved successfully', 200));
   } catch (error) {
     logger.error('admin.get_screening_leads.error', { errorMessage: error?.message });
     next(internalError('Failed to fetch screening leads', 'FETCH_FAILED', error));

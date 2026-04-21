@@ -131,3 +131,4 @@ process.on('uncaughtException', (err) => {
   });
   setTimeout(() => process.exit(1), 1000).unref();
 });
+// Trigger nodemon restart

@@ -136,7 +136,26 @@ export default function AdminScreeningActionsPage() {
   };
 
   const postAction = async (lead: ScreeningLead, endpoint: string, body: Record<string, string>) => {
-    await api.postAdminAction(endpoint, body as Record<string, unknown>);
+    const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+    
+    if (!response.ok || (data && typeof data.success === "boolean" && !data.success)) {
+      throw new Error(data?.message || "Action failed");
+    }
     setSuccess(`${lead.email}: Action completed`);
     await fetchLeads();
   };

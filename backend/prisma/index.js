@@ -1,5 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
+
+// Ensure DATABASE_URL is available even when this module is required from
+// the root Next.js runtime (cwd != backend) or from bundled output.
+if (!process.env.DATABASE_URL) {
+  const envCandidates = [
+    path.resolve(process.cwd(), 'backend', '.env'),
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '.env.local'),
+    path.resolve(__dirname, '..', '.env'),
+  ];
+
+  for (const envPath of envCandidates) {
+    if (!fs.existsSync(envPath)) continue;
+
+    const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex <= 0) continue;
+
+      const key = trimmed.slice(0, eqIndex).trim();
+      if (!key || process.env[key] !== undefined) continue;
+
+      let value = trimmed.slice(eqIndex + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+
+    if (process.env.DATABASE_URL) break;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Singleton Prisma client – prevents multiple connection pools in

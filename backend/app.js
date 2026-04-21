@@ -56,6 +56,7 @@ const allowedOrigins = [
   'https://skillbridge.co.in',
   'https://www.skillbridge.co.in',
   'http://localhost:3000',
+  'http://localhost:3001',
   ...envOrigins
 ].filter(Boolean);
 
