@@ -78,13 +78,17 @@ export default function AppShell({ variant, title, subtitle, actions, children }
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) {
-      router.replace(variant === "admin" ? "/admin" : "/login");
+      if (pathname.startsWith('/workspace') && pathname !== '/workspace/login') {
+        router.replace('/workspace/login');
+      } else {
+        router.replace(variant === "admin" ? "/admin" : "/login");
+      }
       return;
     }
     if (variant === "admin" && !isAdmin) {
       router.replace("/dashboard");
     }
-  }, [isAuthenticated, isAdmin, loading, router, variant]);
+  }, [isAuthenticated, isAdmin, loading, router, variant, pathname]);
 
   useEffect(() => {
     const syncHash = () => setCurrentHash(typeof window !== "undefined" ? window.location.hash : "");
@@ -141,6 +145,27 @@ export default function AppShell({ variant, title, subtitle, actions, children }
                     : hrefHash
                       ? pathname === hrefPath && currentHash === hrefHash
                       : pathname.startsWith(item.href);
+                      
+                  const isSamePageHash = hrefHash && pathname === hrefPath;
+                  
+                  if (isSamePageHash) {
+                    return (
+                      <a
+                        key={item.label}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+                          active 
+                            ? "bg-white text-emerald-700 shadow-[0_1px_3px_rgb(0,0,0,0.04)] border border-gray-200/50" 
+                            : "text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 border border-transparent"
+                        }`}
+                      >
+                        <item.icon className={`h-[15px] w-[15px] ${active ? "text-emerald-600" : "text-gray-400"}`} strokeWidth={active ? 2.5 : 2} />
+                        <span>{item.label}</span>
+                      </a>
+                    );
+                  }
+
                   return (
                     <Link
                       key={item.label}

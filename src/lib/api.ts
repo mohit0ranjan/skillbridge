@@ -188,6 +188,17 @@ class ApiClient {
     return this.request<PaginatedResponse<ScreeningSubmission>>(endpoint);
   }
 
+  async getAdminScreeningLeads() {
+    return this.request<{ success?: boolean; data?: any[] }>('/admin/screening-leads');
+  }
+
+  async sendAdminMail(body: Record<string, string>) {
+    return this.request<{ success?: boolean; message?: string }>('/admin/send-mail', {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+  }
+
   async reviewScreeningSubmission(submissionId: string, body: { status: 'UNDER_REVIEW' | 'SELECTED' | 'REJECTED'; score?: number; feedback?: string }) {
     return this.request<GenericResponse>(`/screening/admin/${submissionId}`, {
       method: 'PATCH',

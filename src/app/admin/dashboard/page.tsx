@@ -115,18 +115,9 @@ export default function AdminDashboardPage() {
 
   const loadScreeningLeads = useCallback(async () => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
-      if (!token) return;
-      console.log("[FETCH LEADS] /api/admin/screening-leads");
-      const response = await fetch("/api/admin/screening-leads", {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const payload = await response.json() as { success?: boolean; data?: ScreeningLead[] };
-      if (!response.ok) {
-        throw new Error("Failed to fetch leads");
-      }
-      if (payload.success && Array.isArray(payload.data)) {
+      console.log("[FETCH LEADS] api.getAdminScreeningLeads");
+      const payload = await api.getAdminScreeningLeads();
+      if (payload?.success && Array.isArray(payload.data)) {
         setScreeningLeads(payload.data);
       }
     } catch (leadError) {
@@ -169,8 +160,6 @@ export default function AdminDashboardPage() {
   }, [screeningLeads, emailFilter, emailSearch]);
 
   const sendEmail = useCallback(async (lead: ScreeningLead, type: EmailStage) => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
-    if (!token) return;
     const sendKey = `${lead.email}-${type}`;
     try {
       setEmailSending(sendKey);
@@ -179,13 +168,8 @@ export default function AdminDashboardPage() {
       if (type === "payment") body.paymentLink = "https://rzp.io/rzp/skillbridge";
       if (type === "payment") body.deadline = "Within 24 Hours";
       if (type === "onboarding") body.whatsappLink = "https://chat.whatsapp.com/skillbridge";
-      const response = await fetch("/api/admin/send-mail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      const result = await response.json() as { success?: boolean; message?: string };
-      if (!response.ok || !result.success) throw new Error(result.message || "Send failed");
+      
+      await api.sendAdminMail(body);
       await loadScreeningLeads();
     } catch (err: any) {
       setError(err?.message || "Failed to send email.");
