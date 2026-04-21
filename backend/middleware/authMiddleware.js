@@ -30,10 +30,14 @@ const protect = async (req, res, next) => {
     try {
       decoded = verifyToken(token, 'JWT_SECRET', 'auth');
     } catch (purposeErr) {
-      // If purpose mismatch, try 'workspace' purpose before failing
       if (purposeErr.message && purposeErr.message.includes('purpose mismatch')) {
         decoded = verifyToken(token, 'JWT_SECRET', 'workspace');
       } else {
+        logger.error('auth.middleware.token_verification_failed', { 
+          errorMessage: purposeErr.message, 
+          stack: purposeErr.stack,
+          note: 'Token failed verification completely before purpose check' 
+        });
         throw purposeErr;
       }
     }

@@ -6,9 +6,10 @@ const resolveApiBase = () => {
     base = configured;
   } else if (process.env.NODE_ENV !== 'production') {
     base = 'http://localhost:5000';
+  } else {
+    base = 'http://localhost:5000'; // Hard fallback to 5000 to prevent silent 404s to nextjs 
   }
 
-  // Ensure /api/v1 suffix
   if (base && !base.endsWith('/api/v1')) {
     return `${base}/api/v1`;
   }

@@ -1,12 +1,7 @@
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
-const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg(new Pool({ connectionString: process.env.DATABASE_URL })),
-});
+const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Seeding database...');
@@ -44,7 +39,7 @@ async function main() {
   const adminUser = await prisma.user.create({
     data: {
       name: 'Admin',
-      email: 'admin@mohit.in',
+      email: 'admin@example.com',
       password: adminHashedPassword,
       role: 'ADMIN',
     },
@@ -354,7 +349,7 @@ async function main() {
   console.log('✅ Created sample submissions');
   console.log('\n🎉 Seed complete!');
   console.log('📧 Test login: test@skillo.in / password123');
-  console.log('📧 Admin login: admin@mohit.in / admin123');
+  console.log('📧 Admin login: admin@example.com / admin123');
 }
 
 main()
