@@ -55,6 +55,7 @@ jest.mock('../../prisma', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
       create: jest.fn(),
+      count: jest.fn(),
     },
   };
 
@@ -172,7 +173,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('1b. Verify payment restores missing enrollment for an already-successful payment', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: userId, role: 'USER' });
+    prisma.user.findUnique.mockResolvedValue({ id: userId, role: 'USER', tokenVersion: 0 });
     prisma.payment.findFirst.mockResolvedValue({
       id: 'pay-db-id',
       userId,
@@ -210,7 +211,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('2. User completes final project submission', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: userId, role: 'USER' });
+    prisma.user.findUnique.mockResolvedValue({ id: userId, role: 'USER', tokenVersion: 0 });
     prisma.internship.findUnique.mockResolvedValue({ id: internshipId, title: 'Backend', tasks: [] });
     prisma.userInternship.findUnique.mockResolvedValue({ status: 'IN_PROGRESS' });
     prisma.finalProjectSubmission.findUnique.mockResolvedValue(null); // No existing
@@ -223,7 +224,7 @@ describe('E2E Pipeline Integration', () => {
       fileUrl: null,
       submittedAt: new Date()
     });
-    prisma.user.findUnique.mockResolvedValue({ id: userId, name: 'Student', email: 'student@test.com' });
+    prisma.user.findUnique.mockResolvedValue({ id: userId, name: 'Student', email: 'student@test.com', tokenVersion: 0 });
 
     const res = await request(app)
       .post(apiPath('/submit-project'))
@@ -242,7 +243,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('3. Admin parallelizes Dashboard analytics', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN', tokenVersion: 0 });
     prisma.user.count.mockResolvedValue(10);
     prisma.internship.count.mockResolvedValue(2);
     prisma.userInternship.count.mockResolvedValue(5);
@@ -260,7 +261,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('3a. Admin dashboard hides internal errors on failures', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN', tokenVersion: 0 });
     prisma.user.count.mockRejectedValue(new Error('database connection reset by peer'));
 
     const res = await request(app)
@@ -275,7 +276,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('3b. Admin ticket listing hides internal errors on failures', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN', tokenVersion: 0 });
     prisma.ticket.findMany.mockRejectedValue(new Error('ticket table lock timeout'));
 
     const res = await request(app)
@@ -290,7 +291,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('3c. Admin ticket reply hides internal errors on failures', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN', tokenVersion: 0 });
     prisma.ticket.findUnique.mockRejectedValue(new Error('unexpected db read failure'));
 
     const res = await request(app)
@@ -310,7 +311,7 @@ describe('E2E Pipeline Integration', () => {
   });
 
   it('4. Admin approves project & Certificate triggers Email', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN' });
+    prisma.user.findUnique.mockResolvedValue({ id: adminId, role: 'ADMIN', tokenVersion: 0 });
     
     // Simulate finding the final submission
     prisma.finalProjectSubmission.findUnique
@@ -332,7 +333,7 @@ describe('E2E Pipeline Integration', () => {
     // For createOrReturnCertificate mock mapping
     prisma.certificate.findUnique.mockResolvedValue(null);
     prisma.certificate.create.mockResolvedValue({ certificateId });
-    prisma.user.findUnique.mockResolvedValueOnce({ id: adminId, role: 'ADMIN' }) // the admin token check
+    prisma.user.findUnique.mockResolvedValueOnce({ id: adminId, role: 'ADMIN', tokenVersion: 0 }) // the admin token check
                           .mockResolvedValueOnce({ id: userId, email: 'student@test.com', name: 'Student' }); // email lookup
     prisma.internship.findUnique.mockResolvedValue({ title: 'Backend' });
 

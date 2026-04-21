@@ -746,7 +746,7 @@ const getAdminUsers = async (req, res, next) => {
  */
 const createInternAccount = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.validatedBody;
     
     if (!name || !email || !password) {
       return next(new ApiError('Name, email, and password are required', 400, 'MISSING_FIELDS'));
@@ -761,7 +761,7 @@ const createInternAccount = async (req, res, next) => {
       return next(new ApiError('A user with this email already exists', 409, 'USER_EXISTS'));
     }
 
-    const bcrypt = require('bcryptjs');
+    const bcrypt = require('bcrypt');
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 

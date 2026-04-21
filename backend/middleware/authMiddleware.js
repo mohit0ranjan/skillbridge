@@ -23,9 +23,26 @@ const protect = async (req, res, next) => {
     return res.status(401).json(ApiResponse.error('Not authorized, no token', 401, 'NO_TOKEN'));
   }
 
+  let decoded;
   try {
-    const decoded = verifyToken(token);
+    // Accept both 'auth' and 'workspace' purposes — both are valid session tokens.
+    // Workspace login issues tokens with purpose='workspace'; regular login uses 'auth'.
+    try {
+      decoded = verifyToken(token, 'JWT_SECRET', 'auth');
+    } catch (purposeErr) {
+      // If purpose mismatch, try 'workspace' purpose before failing
+      if (purposeErr.message && purposeErr.message.includes('purpose mismatch')) {
+        decoded = verifyToken(token, 'JWT_SECRET', 'workspace');
+      } else {
+        throw purposeErr;
+      }
+    }
+  } catch (error) {
+    logger.warn('auth.middleware.jwt_verify_failed', { errorMessage: error?.message });
+    return res.status(401).json(ApiResponse.error('Not authorized, token failed', 401, 'TOKEN_INVALID'));
+  }
 
+  try {
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: { id: true, name: true, email: true, college: true, year: true, role: true, emailVerified: true, tokenVersion: true }
@@ -45,10 +62,10 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    logger.warn('auth.middleware.jwt_verify_failed', { errorMessage: error?.message });
-    return res.status(401).json(ApiResponse.error('Not authorized, token failed', 401, 'TOKEN_INVALID'));
+    return next(error);
   }
 };
+
 
 /**
  * M3 FIX: Middleware that enforces email verification.

@@ -312,7 +312,8 @@ class ApiClient {
 
   // Internships
   async getInternships() {
-    return this.request<Internship[]>('/internships');
+    const response = await this.request<any>('/internships');
+    return (response.items || response) as Internship[];
   }
 
   // Enrollment
