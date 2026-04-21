@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');

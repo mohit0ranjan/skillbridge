@@ -145,10 +145,6 @@ const schemas = {
     token: Joi.string().required(),
   }),
 
-  // Admin - user management
-  updateUserRole: Joi.object({
-    role: Joi.string().valid('USER', 'ADMIN', 'INTERN').required(),
-  }),
 
   // Admin - CRM Email Dispatch
   adminSendEmail: Joi.object({

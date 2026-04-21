@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { ArrowRight, LockKeyhole, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { ApiError } from "@/lib/api";
+import { api, ApiError, AUTH_TOKEN_KEY, AUTH_USER_KEY } from "@/lib/api";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, fetchUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,25 +23,31 @@ export default function AdminLoginPage() {
     }
   }, [isAuthenticated, router, user?.role]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
 
     try {
       setLoading(true);
       setError("");
-      const auth = await login(email, password);
-      if (auth.role !== "ADMIN") {
-        logout();
-        setError("This account does not have admin access.");
-        return;
-      }
+      // H2 FIX: Use dedicated admin login endpoint with server-side role check
+      const auth = await api.adminLogin({ email, password });
+      // Store auth data
+      localStorage.setItem(AUTH_TOKEN_KEY, auth.token);
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify({
+        id: auth.id,
+        name: auth.name,
+        email: auth.email,
+        role: auth.role,
+      }));
+      // Refresh AuthContext state
+      await fetchUser();
       router.replace("/admin/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to sign in.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, fetchUser, router]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(22,163,74,0.08),transparent_40%),linear-gradient(180deg,#f8fafc_0%,#ffffff_100%)] text-gray-900">

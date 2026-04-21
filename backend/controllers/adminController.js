@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
 const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
@@ -527,7 +527,7 @@ const getScreeningLeads = async (req, res, next) => {
         SUBMITTED: 'applied',
         UNDER_REVIEW: 'under_review',
         SELECTED: 'selected',
-        REJECTED: 'applied',
+        REJECTED: 'rejected',
       };
 
       return {

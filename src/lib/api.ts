@@ -187,7 +187,20 @@ class ApiClient {
 
   // H2 FIX: Dedicated workspace login
   async workspaceLogin(body: { email: string; password: string }) {
-    return this.request<AuthResponse>('/workspace/login', { method: 'POST', body: JSON.stringify(body) });
+    const response = await this.request<{ token: string; user: { id: string; name: string; email: string; role: string; hasProfile?: boolean } }>('/workspace/login', { method: 'POST', body: JSON.stringify(body) });
+    // Backend returns { token, user: {...} } — flatten to AuthResponse shape
+    return {
+      id: response.user.id,
+      name: response.user.name,
+      email: response.user.email,
+      role: response.user.role,
+      token: response.token,
+    } as AuthResponse;
+  }
+
+  // H2 FIX: Dedicated admin login endpoint with server-side admin role check
+  async adminLogin(body: { email: string; password: string }) {
+    return this.request<AuthResponse>('/admin/login', { method: 'POST', body: JSON.stringify(body) });
   }
 
   // ────────────────────────────────────────────────
@@ -215,7 +228,7 @@ class ApiClient {
   }
 
   async getAdminScreeningLeads() {
-    return this.request<any[]>('/api/admin/screening-leads');
+    return this.request<any[]>('/admin/screening-leads');
   }
 
   async sendAdminMail(body: Record<string, unknown>) {
@@ -246,8 +259,7 @@ class ApiClient {
     const queryString = query.toString();
     const endpoint = `/admin/users${queryString ? `?${queryString}` : ''}`;
     
-    const response = await this.request<PaginatedResponse<UserProfile>>(endpoint);
-    return (response.items || []) as UserProfile[];
+    return this.request<PaginatedResponse<UserProfile>>(endpoint);
   }
 
   // ────────────────────────────────────────────────
@@ -297,6 +309,14 @@ class ApiClient {
 
   async reviewWorkspaceSubmission(body: { submissionId: string; status: 'APPROVED' | 'REJECTED'; feedback?: string }) {
     return this.request<GenericResponse>('/workspace/admin/review', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  // Admin: Create workspace login credentials for an intern
+  async createWorkspaceUser(body: { name: string; email: string; password: string; internshipStart?: string; internshipEnd?: string }) {
+    return this.request<{ user: { id: string; name: string; email: string; role: string; createdAt: string } }>('/workspace/admin/create-user', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 
   async getMe() {

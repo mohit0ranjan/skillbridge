@@ -3,7 +3,7 @@
  * Unit tests for authentication business logic
  */
 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 
 describe('Auth Utils - Password Hashing', () => {

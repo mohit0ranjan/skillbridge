@@ -288,6 +288,7 @@ model AuditLog {
 
   @@index([adminId])
   @@index([action])
+  @@index([targetId])
   @@index([createdAt])
 }
 

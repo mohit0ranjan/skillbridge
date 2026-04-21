@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2, Mail, Sparkles, ShieldCheck, BadgeCheck, IndianRupee, FileText, MessageCircle } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { api, ApiError, AUTH_TOKEN_KEY } from "@/lib/api";
 
-type ScreeningStatus = "applied" | "under_review" | "selected" | "converted";
+type ScreeningStatus = "applied" | "under_review" | "selected" | "converted" | "rejected";
 
 type ScreeningLead = {
   id: string;
@@ -59,7 +60,9 @@ function StatusBadge({ status }: { status: ScreeningStatus }) {
         ? "bg-green-100 text-green-700"
         : status === "under_review"
           ? "bg-amber-100 text-amber-700"
-          : "bg-slate-100 text-slate-700";
+          : status === "rejected"
+            ? "bg-red-100 text-red-700"
+            : "bg-slate-100 text-slate-700";
 
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${palette}`}>{status}</span>;
 }
@@ -73,34 +76,24 @@ export default function AdminScreeningActionsPage() {
   const [query, setQuery] = useState("");
   const [drafts, setDrafts] = useState<Record<string, LeadDraft>>({});
 
+  // ── Create Workspace Access state ──
+  const [wsModalLead, setWsModalLead] = useState<ScreeningLead | null>(null);
+  const [wsPassword, setWsPassword] = useState("");
+  const [wsCreating, setWsCreating] = useState(false);
+  const [wsResult, setWsResult] = useState<string | null>(null);
+
   const fetchLeads = async () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
-    if (!token) {
-      setError("Admin session not found.");
-      setLeads([]);
-      setLoading(false);
-      return;
-    }
-
-    const response = await fetch("/api/admin/screening-leads", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-
-    const payload = (await response.json()) as { success?: boolean; message?: string; data?: ScreeningLead[] };
-    if (!response.ok || !payload.success) {
-      throw new Error(payload.message || "Failed to load screening leads.");
-    }
-
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    setLeads(rows);
+    console.log("[FETCH LEADS] /admin/screening-leads via api client");
+    const payload = await api.getAdminScreeningLeads();
+    const rows = Array.isArray(payload) ? payload : [];
+    setLeads(rows as ScreeningLead[]);
     setDrafts((current) => {
       const next = { ...current };
       for (const lead of rows) {
         if (!next[lead.id]) {
           next[lead.id] = {
             ...DEFAULT_DRAFT,
-            internship: lead.college || DEFAULT_DRAFT.internship,
+            internship: (lead as any).college || DEFAULT_DRAFT.internship,
           };
         }
       }
@@ -142,28 +135,38 @@ export default function AdminScreeningActionsPage() {
     }));
   };
 
-  const postAction = async (lead: ScreeningLead, type: string, body: Record<string, string>) => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
-    if (!token) {
-      throw new Error("Admin session not found.");
-    }
-
-    const response = await fetch(type, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    const payload = (await response.json()) as { success?: boolean; message?: string };
-    if (!response.ok || !payload.success) {
-      throw new Error(payload.message || "Action failed.");
-    }
-
-    setSuccess(`${lead.email}: ${payload.message || "Action completed"}`);
+  const postAction = async (lead: ScreeningLead, endpoint: string, body: Record<string, string>) => {
+    await api.sendAdminMail(body as Record<string, unknown>);
+    setSuccess(`${lead.email}: Action completed`);
     await fetchLeads();
+  };
+
+  // ── Create Workspace Access handler ──
+  const handleCreateWorkspaceUser = async () => {
+    if (!wsModalLead) return;
+    const pw = wsPassword.trim();
+    if (!pw || pw.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    try {
+      setWsCreating(true);
+      setError("");
+      setWsResult(null);
+      const result = await api.createWorkspaceUser({
+        name: wsModalLead.name,
+        email: wsModalLead.email,
+        password: pw,
+      });
+      setWsResult(`✅ Workspace account created for ${result.user.email}`);
+      setWsPassword("");
+      await fetchLeads();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to create workspace user.");
+    } finally {
+      setWsCreating(false);
+    }
   };
 
   const runAction = async (lead: ScreeningLead, action: "selection" | "payment" | "offer" | "onboarding" | "certificate" | "reminder") => {
@@ -247,6 +250,7 @@ export default function AdminScreeningActionsPage() {
   };
 
   return (
+    <>
     <AppShell
       variant="admin"
       title="Screening Actions"
@@ -384,6 +388,15 @@ export default function AdminScreeningActionsPage() {
                     <button onClick={() => void runAction(lead, "reminder")} className="btn-secondary btn-sm gap-2" disabled={isBusy}>
                       <MessageCircle className="h-4 w-4" /> Send Reminder
                     </button>
+                    {lead.status === "selected" && (
+                      <button
+                        onClick={() => { setWsModalLead(lead); setWsPassword(""); setWsResult(null); setError(""); }}
+                        className="btn-primary btn-sm gap-2 bg-indigo-600 hover:bg-indigo-700"
+                        disabled={isBusy}
+                      >
+                        <ShieldCheck className="h-4 w-4" /> Create Workspace Access
+                      </button>
+                    )}
                   </div>
                 </article>
               );
@@ -398,5 +411,57 @@ export default function AdminScreeningActionsPage() {
         </div>
       </div>
     </AppShell>
+
+    {/* ── Create Workspace Access Modal ── */}
+    {wsModalLead && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setWsModalLead(null)}>
+        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-5" onClick={(e) => e.stopPropagation()}>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600 mb-1">Create Workspace Access</p>
+            <h3 className="text-xl font-bold text-gray-900">{wsModalLead.name}</h3>
+            <p className="text-sm text-gray-500 mt-1">{wsModalLead.email}</p>
+          </div>
+
+          {wsResult ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {wsResult}
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-[0.16em] text-gray-500 mb-2">Password for workspace login</label>
+                <input
+                  type="text"
+                  value={wsPassword}
+                  onChange={(e) => setWsPassword(e.target.value)}
+                  className="input-base font-mono"
+                  placeholder="Min 8 chars, e.g. Intern@2026"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-2">This password will be hashed. Share it with the intern securely.</p>
+              </div>
+              {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+            </>
+          )}
+
+          <div className="flex gap-3 justify-end">
+            <button onClick={() => setWsModalLead(null)} className="btn-secondary btn-sm">
+              {wsResult ? "Done" : "Cancel"}
+            </button>
+            {!wsResult && (
+              <button
+                onClick={handleCreateWorkspaceUser}
+                disabled={wsCreating || wsPassword.trim().length < 8}
+                className="btn-primary btn-sm gap-2"
+              >
+                {wsCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                {wsCreating ? "Creating..." : "Create Account"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

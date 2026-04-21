@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const prisma = require('../prisma');
 const { generateToken, generateResetToken, verifyToken } = require('../utils/jwt');
 const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
@@ -345,10 +345,11 @@ const resetPassword = async (req, res, next) => {
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update password
+    // Update password and invalidate existing sessions
+    // M4 FIX: Increment tokenVersion to force re-login after password change
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, tokenVersion: { increment: 1 } }
     });
     logger.info('auth.reset_password.updated', { userId });
 

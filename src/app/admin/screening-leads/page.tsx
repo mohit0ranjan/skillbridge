@@ -6,7 +6,7 @@ import { ArrowRight, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { api } from "@/lib/api";
 
-type ScreeningStatus = "applied" | "under_review" | "selected" | "converted";
+type ScreeningStatus = "applied" | "under_review" | "selected" | "converted" | "rejected";
 
 type ScreeningLead = {
   id: string;
@@ -36,6 +36,7 @@ const FILTERS: Array<{ value: "all" | ScreeningStatus; label: string }> = [
   { value: "under_review", label: "Under review" },
   { value: "selected", label: "Selected" },
   { value: "converted", label: "Converted" },
+  { value: "rejected", label: "Rejected" },
 ];
 
 function StatusBadge({ status }: { status: ScreeningStatus }) {
@@ -46,7 +47,9 @@ function StatusBadge({ status }: { status: ScreeningStatus }) {
         ? "bg-green-100 text-green-700"
         : status === "under_review"
           ? "bg-amber-100 text-amber-700"
-          : "bg-slate-100 text-slate-700";
+          : status === "rejected"
+            ? "bg-red-100 text-red-700"
+            : "bg-slate-100 text-slate-700";
 
   const label = status === "under_review" ? "screened / under_review" : status;
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${palette}`}>{label}</span>;

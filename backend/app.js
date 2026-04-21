@@ -114,8 +114,8 @@ if (process.env.NODE_ENV === 'production') {
 app.use(['/razorpay-webhook', '/webhooks/razorpay'], express.raw({ type: 'application/json', limit: '1mb' }));
 
 // Body parsing with size limits
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
 // Request timeout guard to prevent hung connections from consuming workers.
 app.use((req, res, next) => {

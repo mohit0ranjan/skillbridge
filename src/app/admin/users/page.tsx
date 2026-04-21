@@ -36,8 +36,8 @@ export default function AdminUsersPage() {
   const fetchUsers = async (search = "") => {
     const normalized = search.trim();
     console.log(`[FETCH USERS] /admin/users query=${normalized || "<none>"}`);
-    const rows = await api.getAdminUsers({ search: normalized || undefined, limit: 200, page: 1 });
-    setUsers(rows as AdminUserRow[]);
+    const response = await api.getAdminUsers({ search: normalized || undefined, limit: 200, page: 1 });
+    setUsers((response.items || []) as AdminUserRow[]);
   };
 
   useEffect(() => {
