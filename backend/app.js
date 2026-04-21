@@ -290,6 +290,9 @@ app.use('/api/v1', apiRouter);
 // H1 FIX: Removed legacy unversioned mount (`app.use('/', apiRouter)`).
 // This was bypassing rate limiters applied to /api/v1/* paths.
 
+// Legacy compatibility for clients still calling /admin/* directly.
+app.use('/admin', adminLimiter, adminRoutes);
+
 // ============================================
 // ERROR HANDLING
 // ============================================

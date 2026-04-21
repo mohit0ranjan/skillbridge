@@ -115,6 +115,15 @@ const schemas = {
     password: Joi.string().min(6).max(50).required()
   }),
 
+  adminCreateUser: Joi.object({
+    name: Joi.string().min(2).max(100).required().trim(),
+    email: Joi.string().email().required().lowercase(),
+    password: Joi.string().min(8).max(50).required()
+      .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+      .message('Password must contain uppercase, lowercase, number, and special char'),
+    role: Joi.string().valid('USER', 'ADMIN', 'INTERN').optional().default('INTERN'),
+  }),
+
   updateUserRole: Joi.object({
     role: Joi.string().valid('USER', 'ADMIN', 'INTERN').required(),
   }),

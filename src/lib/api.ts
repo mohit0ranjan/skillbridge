@@ -110,7 +110,8 @@ class ApiClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, {
+      const requestUrl = path.startsWith('/api/') ? path : `${this.baseUrl}${path}`;
+      response = await fetch(requestUrl, {
         ...options,
         headers,
         signal: options.signal || timeoutController?.signal,
@@ -214,7 +215,7 @@ class ApiClient {
   }
 
   async getAdminScreeningLeads() {
-    return this.request<any[]>('/admin/screening-leads');
+    return this.request<any[]>('/api/admin/screening-leads');
   }
 
   async sendAdminMail(body: Record<string, unknown>) {

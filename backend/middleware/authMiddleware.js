@@ -39,6 +39,15 @@ const protect = async (req, res, next) => {
     }
   } catch (error) {
     logger.warn('auth.middleware.jwt_verify_failed', { errorMessage: error?.message });
+
+    if (error?.name === 'TokenExpiredError') {
+      return res.status(401).json(ApiResponse.error('Session expired. Please login again.', 401, 'TOKEN_EXPIRED'));
+    }
+
+    if (error?.name === 'JsonWebTokenError' || /invalid signature|jwt malformed|invalid token/i.test(error?.message || '')) {
+      return res.status(401).json(ApiResponse.error('Not authorized, token is invalid', 401, 'TOKEN_INVALID'));
+    }
+
     return res.status(401).json(ApiResponse.error('Not authorized, token failed', 401, 'TOKEN_INVALID'));
   }
 

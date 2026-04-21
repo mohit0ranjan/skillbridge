@@ -1,7 +1,9 @@
+const bcrypt = require('bcrypt');
 const prisma = require('../prisma');
 const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const { parsePagination, paginatedResult } = require('../utils/pagination');
+const { generateToken } = require('../utils/jwt');
 const { createOrReturnCertificate } = require('./learningController');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
@@ -18,6 +20,93 @@ const {
 
 // H4 FIX: Super-admin email whitelist — only these admins can promote others to ADMIN.
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+const MANAGED_USER_ROLES = new Set(['USER', 'ADMIN', 'INTERN']);
+
+const normalizeRole = (role) => String(role || '').trim().toUpperCase();
+
+const createManagedUserRecord = async ({ name, email, password, role }, createdBy) => {
+  const normalizedEmail = email.toLowerCase();
+  const normalizedRole = normalizeRole(role || 'INTERN');
+
+  if (!MANAGED_USER_ROLES.has(normalizedRole)) {
+    throw new ApiError('Invalid role supplied', 400, 'INVALID_ROLE');
+  }
+
+  if (normalizedRole === 'ADMIN') {
+    const callerEmail = String(createdBy?.email || '').toLowerCase();
+    if (SUPER_ADMIN_EMAILS.length > 0 && !SUPER_ADMIN_EMAILS.includes(callerEmail)) {
+      throw new ApiError('Only super-admins can create ADMIN users', 403, 'INSUFFICIENT_PRIVILEGE');
+    }
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (existingUser) {
+    throw new ApiError('A user with this email already exists', 409, 'USER_EXISTS');
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  return prisma.user.create({
+    data: {
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: normalizedRole,
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true,
+    },
+  });
+};
+
+/**
+ * Admin login
+ * POST /admin/login
+ */
+const adminLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.validatedBody;
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user || normalizeRole(user.role) !== 'ADMIN') {
+      return next(new ApiError('Invalid email or password', 401, 'INVALID_CREDENTIALS'));
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return next(new ApiError('Invalid email or password', 401, 'INVALID_CREDENTIALS'));
+    }
+
+    const token = generateToken(user.id, '7d', 'JWT_SECRET', 'auth', user.tokenVersion || 0);
+
+    return res.json(ApiResponse.success(
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token,
+      },
+      'Admin login successful',
+      200
+    ));
+  } catch (error) {
+    logger.error('admin.login.error', { email: req.validatedBody?.email, errorMessage: error?.message });
+    next(internalError('Admin login failed', 'ADMIN_LOGIN_FAILED', error));
+  }
+};
 
 
 /**
@@ -744,47 +833,33 @@ const getAdminUsers = async (req, res, next) => {
 /**
  * Manually create an Intern account (Workspace allowed)
  */
+const createManagedUser = async (req, res, next) => {
+  try {
+    const { name, email, password, role } = req.validatedBody;
+    const newUser = await createManagedUserRecord({ name, email, password, role }, req.user);
+
+    res.status(201).json(ApiResponse.success({ user: newUser }, 'User account created successfully', 201));
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return next(error);
+    }
+
+    logger.error('admin.create_user.error', { errorMessage: error?.message });
+    next(internalError('Failed to create user account', 'CREATE_USER_FAILED', error));
+  }
+};
+
 const createInternAccount = async (req, res, next) => {
   try {
     const { name, email, password } = req.validatedBody;
-    
-    if (!name || !email || !password) {
-      return next(new ApiError('Name, email, and password are required', 400, 'MISSING_FIELDS'));
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (existingUser) {
-      return next(new ApiError('A user with this email already exists', 409, 'USER_EXISTS'));
-    }
-
-    const bcrypt = require('bcrypt');
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const newUser = await prisma.user.create({
-      data: {
-        name,
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        role: 'INTERN',              // Essential for Workspace pipeline
-        emailVerified: true,         // Assume admin bypasses verification
-        emailVerifiedAt: new Date(),
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-      }
-    });
+    const newUser = await createManagedUserRecord({ name, email, password, role: 'INTERN' }, req.user);
 
     res.status(201).json(ApiResponse.success({ user: newUser }, 'Intern account created successfully', 201));
   } catch (error) {
+    if (error instanceof ApiError) {
+      return next(error);
+    }
+
     logger.error('admin.create_intern.error', { errorMessage: error?.message });
     next(internalError('Failed to create intern account', 'CREATE_INTERN_FAILED', error));
   }
@@ -792,6 +867,7 @@ const createInternAccount = async (req, res, next) => {
 
 
 module.exports = {
+  adminLogin,
   getPendingSubmissions,
   getUserDetails,
   updateUserRole,
@@ -802,5 +878,6 @@ module.exports = {
   reviewFinalProjectSubmission,
   sendAdminEmail,
   getAdminUsers,
+  createManagedUser,
   createInternAccount,
 };
