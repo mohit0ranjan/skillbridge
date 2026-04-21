@@ -12,6 +12,7 @@
     "build": "prisma generate",
     "postinstall": "[ \"$NODE_ENV\" != \"production\" ] && prisma generate || true",
     "seed": "node prisma/seed.js",
+    "seed:admin": "node scripts/seed-admin.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
