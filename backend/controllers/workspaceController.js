@@ -64,33 +64,51 @@ const createInternUser = async (req, res, next) => {
     const normalizedEmail = email.toLowerCase().trim();
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (existing) {
-      return next(new ApiError('Email already registered', 409, 'DUPLICATE_EMAIL'));
+    if (existing && existing.role === 'ADMIN') {
+      return next(new ApiError('Cannot convert an admin to an intern', 400, 'INVALID_ROLE_CHANGE'));
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const created = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
+    const createdOrUpdated = await prisma.$transaction(async (tx) => {
+      // 1. Upsert user (upgrade role to INTERN, update password)
+      const user = await tx.user.upsert({
+        where: { email: normalizedEmail },
+        update: {
+          name: name.trim(),
+          password: hashedPassword,
+          role: 'INTERN',
+          tokenVersion: { increment: 1 }, 
+        },
+        create: {
           name: name.trim(),
           email: normalizedEmail,
           password: hashedPassword,
           role: 'INTERN',
+          emailVerified: true,
         },
         select: { id: true, name: true, email: true, role: true, createdAt: true },
       });
 
-      await tx.internProfile.create({
-        data: {
+      // 2. Upsert InternProfile
+      await tx.internProfile.upsert({
+        where: { userId: user.id },
+        update: {
+          internshipStart: internshipStart ? new Date(internshipStart) : undefined,
+          internshipEnd: internshipEnd ? new Date(internshipEnd) : undefined,
+        },
+        create: {
           userId: user.id,
           internshipStart: internshipStart ? new Date(internshipStart) : null,
           internshipEnd: internshipEnd ? new Date(internshipEnd) : null,
         },
       });
 
-      await tx.workspaceProgress.create({
-        data: {
+      // 3. Upsert WorkspaceProgress
+      await tx.workspaceProgress.upsert({
+        where: { userId: user.id },
+        update: {}, // Keep existing progress if they already had it
+        create: {
           userId: user.id,
           week1: false,
           week2: false,
@@ -102,7 +120,7 @@ const createInternUser = async (req, res, next) => {
       return user;
     });
 
-    return res.status(201).json(ApiResponse.success({ user: created }, 'Intern user created', 201));
+    return res.status(201).json(ApiResponse.success({ user: createdOrUpdated }, 'Intern user created/upgraded successfully', 201));
   } catch (error) {
     logger.error('workspace.admin.create_user.error', { errorMessage: error?.message });
     return next(internalError('Failed to create intern user', 'WORKSPACE_CREATE_USER_FAILED', error));

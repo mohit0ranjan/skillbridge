@@ -136,7 +136,7 @@ export default function AdminScreeningActionsPage() {
   };
 
   const postAction = async (lead: ScreeningLead, endpoint: string, body: Record<string, string>) => {
-    await api.sendAdminMail(body as Record<string, unknown>);
+    await api.postAdminAction(endpoint, body as Record<string, unknown>);
     setSuccess(`${lead.email}: Action completed`);
     await fetchLeads();
   };

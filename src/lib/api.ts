@@ -249,6 +249,15 @@ class ApiClient {
     });
   }
 
+  async postAdminAction(endpoint: string, body: Record<string, unknown>) {
+    // Strip "/api/v1" or "/api" if it was passed from older code
+    const path = endpoint.replace(/^\/api\/v1/, '').replace(/^\/api/, '');
+    return this.request<{ success?: boolean; message?: string }>(path, {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+  }
+
   async reviewScreeningSubmission(submissionId: string, body: { status: 'UNDER_REVIEW' | 'SELECTED' | 'REJECTED'; score?: number; feedback?: string }) {
     return this.request<GenericResponse>(`/screening/admin/${submissionId}`, {
       method: 'PATCH',
