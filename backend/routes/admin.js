@@ -10,8 +10,11 @@ const {
   getInternshipAnalytics,
   getDashboardOverview,
   getCertificates,
+  getScreeningLeads,
   reviewFinalProjectSubmission,
-  sendAdminEmail
+  sendAdminEmail,
+  getAdminUsers,
+  createInternAccount
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -27,6 +30,8 @@ router.get('/submissions', getPendingSubmissions);
 router.patch('/final-submission/:submissionId', validate('reviewFinalSubmission'), reviewFinalProjectSubmission);
 
 // Users
+router.get('/users', getAdminUsers);
+router.post('/interns/create', validate('createInternAccount'), createInternAccount);
 router.get('/user/:userId', getUserDetails);
 router.patch('/user/:userId/role', validate('updateUserRole'), updateUserRole);
 
@@ -38,6 +43,9 @@ router.get('/internship/:internshipId/analytics', getInternshipAnalytics);
 
 // Certificates
 router.get('/certificates', getCertificates);
+
+// Screening
+router.get('/screening-leads', getScreeningLeads);
 
 // Support
 router.get('/tickets', getAllTickets);

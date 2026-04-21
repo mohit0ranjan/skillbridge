@@ -17,6 +17,11 @@ const resolveApiBase = () => {
 
 export const API_BASE = resolveApiBase();
 
+export const AUTH_TOKEN_KEY = 'sb_token';
+export const AUTH_USER_KEY = 'sb_user';
+export const WORKSPACE_TOKEN_KEY = 'sb_workspace_token';
+export const WORKSPACE_USER_KEY = 'sb_workspace_user';
+
 class ApiClient {
   private baseUrl: string;
   private triedLegacyBaseFallback = false;
@@ -46,9 +51,41 @@ class ApiClient {
     return path.startsWith('/auth/');
   }
 
-  private getToken(): string | null {
+  private isWorkspacePath(path: string): boolean {
+    return path.startsWith('/workspace');
+  }
+
+  private getToken(path: string): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('sb_token');
+    if (this.isWorkspacePath(path)) {
+      return localStorage.getItem(WORKSPACE_TOKEN_KEY) || localStorage.getItem(AUTH_TOKEN_KEY);
+    }
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  }
+
+  private handleUnauthorized(path: string, json: any): never {
+    const rawMessage = String(json?.message || '').toLowerCase();
+    const isTokenFailure = rawMessage.includes('token')
+      || rawMessage.includes('session')
+      || rawMessage.includes('not authorized, no token')
+      || rawMessage.includes('user not found')
+      || rawMessage.includes('jwt');
+
+    if (!isTokenFailure || typeof window === 'undefined') {
+      throw new ApiError(json?.message || 'Unauthorized request.', 401, json);
+    }
+
+    if (this.isWorkspacePath(path)) {
+      localStorage.removeItem(WORKSPACE_TOKEN_KEY);
+      localStorage.removeItem(WORKSPACE_USER_KEY);
+      window.location.href = '/workspace/login';
+      throw new ApiError('Workspace session expired. Please login again.', 401, json);
+    }
+
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+    window.location.href = '/login';
+    throw new ApiError('Session expired. Please login again.', 401, json);
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -56,7 +93,7 @@ class ApiClient {
       throw new ApiError('API base URL is not configured. Set NEXT_PUBLIC_API_URL.', 500);
     }
 
-    const token = this.getToken();
+    const token = this.getToken(path);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -117,19 +154,7 @@ class ApiClient {
       }
 
       if (response.status === 401) {
-        const rawMessage = String(json?.message || '').toLowerCase();
-        const isTokenFailure = rawMessage.includes('token')
-          || rawMessage.includes('session')
-          || rawMessage.includes('not authorized, no token')
-          || rawMessage.includes('user not found');
-
-        if (isTokenFailure && typeof window !== 'undefined') {
-          localStorage.removeItem('sb_token');
-          localStorage.removeItem('sb_user');
-          throw new ApiError('Session expired. Please login again.', response.status, json);
-        }
-
-        throw new ApiError(json?.message || 'Unauthorized request.', response.status, json);
+        this.handleUnauthorized(path, json);
       }
 
       // Backend sends { message, details } on validation errors
@@ -189,11 +214,11 @@ class ApiClient {
   }
 
   async getAdminScreeningLeads() {
-    return this.request<{ success?: boolean; data?: any[] }>('/admin/screening-leads');
+    return this.request<any[]>('/admin/screening-leads');
   }
 
-  async sendAdminMail(body: Record<string, string>) {
-    return this.request<{ success?: boolean; message?: string }>('/admin/send-mail', {
+  async sendAdminMail(body: Record<string, unknown>) {
+    return this.request<{ success?: boolean; message?: string }>('/admin/send-email', {
       method: "POST",
       body: JSON.stringify(body)
     });
@@ -206,12 +231,31 @@ class ApiClient {
     });
   }
 
+  async createInternAccount(body: { name: string; email: string; password: string }) {
+    return this.request<{ user: UserProfile }>('/admin/interns/create', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async getAdminUsers(filters?: { search?: string; role?: string; page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (filters?.search) query.set('search', filters.search);
+    if (filters?.role) query.set('role', filters.role);
+    if (filters?.page) query.set('page', filters.page.toString());
+    if (filters?.limit) query.set('limit', filters.limit.toString());
+    
+    const queryString = query.toString();
+    const endpoint = `/admin/users${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await this.request<PaginatedResponse<UserProfile>>(endpoint);
+    return (response.items || []) as UserProfile[];
+  }
+
   // ────────────────────────────────────────────────
   // WORKSPACE PIPELINE
   // ────────────────────────────────────────────────
 
   async getWorkspaceProjects() {
-    return this.request<WorkspaceProject[]>('/workspace/projects');
+    const response = await this.request<{ projects?: WorkspaceProject[] }>('/workspace/projects');
+    return response.projects || [];
   }
 
   async selectWorkspaceProject(projectId: string) {
@@ -219,15 +263,35 @@ class ApiClient {
   }
 
   async getWorkspaceProgress() {
-    return this.request<{ internProfile: InternProfile; workspaceProgress: WorkspaceProgress }>('/workspace/progress');
+    const response = await this.request<{ profile?: InternProfile; progress?: WorkspaceProgress }>('/workspace/progress');
+    return {
+      internProfile: (response.profile || {}) as InternProfile,
+      workspaceProgress: (response.progress || { week1: false, week2: false, week3: false, week4: false }) as WorkspaceProgress,
+    };
+  }
+
+  async updateWorkspaceProgress(week: number, status: boolean) {
+    return this.request<GenericResponse>('/workspace/progress', {
+      method: 'POST',
+      body: JSON.stringify({ week, status }),
+    });
   }
 
   async submitWorkspaceProject(body: { githubUrl: string; liveUrl?: string; comments?: string }) {
-    return this.request<{ submission: WorkspaceSubmission }>('/workspace/submit', { method: 'POST', body: JSON.stringify(body) });
+    return this.request<{ submission: WorkspaceSubmission }>('/workspace/submit', {
+      method: 'POST',
+      body: JSON.stringify({ githubLink: body.githubUrl }),
+    });
+  }
+
+  async getWorkspaceSubmission() {
+    const response = await this.request<{ submission: WorkspaceSubmission | null }>('/workspace/submission');
+    return response.submission;
   }
 
   async getWorkspaceAdminInterns() {
-    return this.request<{ interns: any[] }>('/workspace/admin/interns');
+    const response = await this.request<{ interns?: any[] }>('/workspace/admin/interns');
+    return { interns: response.interns || [] };
   }
 
   async reviewWorkspaceSubmission(body: { submissionId: string; status: 'APPROVED' | 'REJECTED'; feedback?: string }) {
@@ -302,11 +366,13 @@ class ApiClient {
 
   async getAdminTickets(status?: string) {
     const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    return this.request<Ticket[]>(`/admin/tickets${query}`);
+    const response = await this.request<{ tickets?: Ticket[] }>(`/admin/tickets${query}`);
+    return response.tickets || [];
   }
 
   async getAdminCertificates() {
-    return this.request<AdminCertificate[]>('/admin/certificates');
+    const response = await this.request<PaginatedResponse<AdminCertificate>>('/admin/certificates');
+    return (response.items || []) as AdminCertificate[];
   }
 
   async updateAdminTicketStatus(ticketId: string, status: string) {
@@ -725,29 +791,27 @@ export type WorkspaceProject = {
 };
 
 export type WorkspaceProgress = {
-  selectedProjectId?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  githubUrl?: string;
-  liveUrl?: string;
+  week1: boolean;
+  week2: boolean;
+  week3: boolean;
+  week4: boolean;
 };
 
 export type InternProfile = {
-  id: string;
-  githubUrl?: string;
-  linkedinUrl?: string;
-  portfolioUrl?: string;
-  college?: string;
-  year?: string;
+  id?: string;
+  selectedProjectId?: string;
+  internshipStart?: string | null;
+  internshipEnd?: string | null;
+  selectedProject?: WorkspaceProject;
 };
 
 export type WorkspaceSubmission = {
   id: string;
-  githubUrl: string;
-  liveUrl?: string;
-  comments?: string;
+  githubLink: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   feedback?: string;
   createdAt: string;
+  project?: WorkspaceProject;
 };
 
 export type GenericResponse = Record<string, unknown>;

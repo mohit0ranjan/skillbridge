@@ -22,39 +22,73 @@ const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS || '').split(',').map
 
 /**
  * Get all submissions pending review (admin only)
+ * M3 FIX: Merges both standard and Workspace submissions into a single unified dashboard view.
  */
 const getPendingSubmissions = async (req, res, next) => {
   try {
-    const { internshipId, status } = req.query;
-    const { skip, take, page, limit } = parsePagination(req);
-    const where = {};
-
-    if (internshipId) {
-      where.internshipId = internshipId;
-    }
-
+    const { status } = req.query;
+    
+    // 1. Fetch Standard Submissions
+    const whereStandard = {};
     if (status) {
-      where.status = status;
+      whereStandard.status = status;
     } else {
-      where.status = { in: ['SUBMITTED', 'UNDER_REVIEW'] };
+      whereStandard.status = { in: ['SUBMITTED', 'UNDER_REVIEW'] };
     }
 
-    const [submissions, total] = await Promise.all([
-      prisma.finalProjectSubmission.findMany({
-        where,
-        include: {
-          user: { select: { id: true, name: true, email: true, college: true } },
-          internship: { select: { id: true, title: true, domain: true } }
-        },
-        orderBy: { submittedAt: 'desc' },
-        skip,
-        take,
-      }),
-      prisma.finalProjectSubmission.count({ where }),
-    ]);
+    const standardSubmissions = await prisma.finalProjectSubmission.findMany({
+      where: whereStandard,
+      include: {
+        user: { select: { id: true, name: true, email: true, college: true } },
+        internship: { select: { id: true, title: true, domain: true } }
+      },
+      orderBy: { submittedAt: 'desc' },
+      take: 50, // Keep simple limit for merged list
+    });
+
+    // 2. Fetch Workspace Submissions
+    const whereWorkspace = {};
+    if (status) {
+      if (status === 'SUBMITTED') whereWorkspace.status = 'PENDING';
+      else whereWorkspace.status = status;
+    } else {
+      whereWorkspace.status = 'PENDING';
+    }
+
+    const workspaceSubmissions = await prisma.workspaceSubmission.findMany({
+      where: whereWorkspace,
+      include: {
+        user: { select: { id: true, name: true, email: true, college: true } },
+        project: { select: { id: true, title: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    // 3. Normalize & Merge
+    const normalizedStandard = standardSubmissions.map(s => ({
+      ...s,
+      type: 'STANDARD',
+      projectTitle: s.projectTitle,
+      projectLink: s.projectLink,
+      status: s.status,
+      submittedAt: s.submittedAt,
+    }));
+
+    const normalizedWorkspace = workspaceSubmissions.map(w => ({
+      ...w,
+      type: 'WORKSPACE',
+      projectTitle: w.project.title,
+      projectLink: w.githubLink,
+      status: w.status === 'PENDING' ? 'SUBMITTED' : w.status,
+      internship: { title: 'Workspace Project' }, // Mock structure to match frontend
+      submittedAt: w.createdAt,
+    }));
+
+    const merged = [...normalizedStandard, ...normalizedWorkspace].sort((a, b) => b.submittedAt - a.submittedAt);
 
     res.json(ApiResponse.success(
-      paginatedResult(submissions, total, page, limit),
+      paginatedResult(merged, merged.length, 1, 100),
       'Pending submissions retrieved successfully',
       200
     ));
@@ -378,6 +412,67 @@ const getCertificates = async (req, res, next) => {
 };
 
 /**
+ * Get screening leads for admin CRM views.
+ */
+const getScreeningLeads = async (req, res, next) => {
+  try {
+    const rows = await prisma.screeningSubmission.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            college: true,
+            year: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    const mapped = rows.map((row) => {
+      const statusMap = {
+        SUBMITTED: 'applied',
+        UNDER_REVIEW: 'under_review',
+        SELECTED: 'selected',
+        REJECTED: 'applied',
+      };
+
+      return {
+        id: row.id,
+        userId: row.userId,
+        name: row.user?.name || 'Unknown',
+        email: row.user?.email || '',
+        phone: '',
+        college: row.user?.college || '',
+        year: row.user?.year || '',
+        branch: '',
+        status: statusMap[row.status] || 'applied',
+        test_submitted: true,
+        test_score: row.score,
+        email_sent: false,
+        clicked_confirm: false,
+        selection_mail_sent: false,
+        payment_mail_sent: false,
+        offer_sent: false,
+        onboarding_sent: false,
+        certificate_issued: false,
+        converted: (row.user?.role || '') === 'INTERN',
+        created_at: row.createdAt,
+      };
+    });
+
+    res.json(ApiResponse.success(mapped, 'Screening leads retrieved successfully', 200));
+  } catch (error) {
+    logger.error('admin.get_screening_leads.error', { errorMessage: error?.message });
+    next(internalError('Failed to fetch screening leads', 'FETCH_FAILED', error));
+  }
+};
+
+/**
  * Review final project submission (admin only)
  */
 const reviewFinalProjectSubmission = async (req, res, next) => {
@@ -596,6 +691,106 @@ const sendAdminEmail = async (req, res, next) => {
   }
 };
 
+/**
+ * Get all registered users (admin only)
+ */
+const getAdminUsers = async (req, res, next) => {
+  try {
+    const { page, limit, skip, take } = parsePagination(req);
+    const { search, role } = req.query;
+
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (role) {
+      where.role = role.toUpperCase();
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          college: true,
+          year: true,
+          role: true,
+          emailVerified: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    res.json(ApiResponse.success(
+      paginatedResult(users, total, page, limit),
+      'Users retrieved successfully',
+      200
+    ));
+  } catch (error) {
+    logger.error('admin.get_users.error', { errorMessage: error?.message });
+    next(internalError('Failed to fetch users', 'FETCH_USERS_FAILED', error));
+  }
+};
+
+/**
+ * Manually create an Intern account (Workspace allowed)
+ */
+const createInternAccount = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return next(new ApiError('Name, email, and password are required', 400, 'MISSING_FIELDS'));
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (existingUser) {
+      return next(new ApiError('A user with this email already exists', 409, 'USER_EXISTS'));
+    }
+
+    const bcrypt = require('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        role: 'INTERN',              // Essential for Workspace pipeline
+        emailVerified: true,         // Assume admin bypasses verification
+        emailVerifiedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      }
+    });
+
+    res.status(201).json(ApiResponse.success({ user: newUser }, 'Intern account created successfully', 201));
+  } catch (error) {
+    logger.error('admin.create_intern.error', { errorMessage: error?.message });
+    next(internalError('Failed to create intern account', 'CREATE_INTERN_FAILED', error));
+  }
+};
+
+
 module.exports = {
   getPendingSubmissions,
   getUserDetails,
@@ -603,6 +798,9 @@ module.exports = {
   getInternshipAnalytics,
   getDashboardOverview,
   getCertificates,
+  getScreeningLeads,
   reviewFinalProjectSubmission,
   sendAdminEmail,
+  getAdminUsers,
+  createInternAccount,
 };

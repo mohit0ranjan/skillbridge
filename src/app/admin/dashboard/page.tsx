@@ -19,6 +19,7 @@ const hashToTab: Record<string, TabValue> = {
 
 type ScreeningLead = {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   phone: string;
@@ -117,9 +118,7 @@ export default function AdminDashboardPage() {
     try {
       console.log("[FETCH LEADS] api.getAdminScreeningLeads");
       const payload = await api.getAdminScreeningLeads();
-      if (payload?.success && Array.isArray(payload.data)) {
-        setScreeningLeads(payload.data);
-      }
+      setScreeningLeads(Array.isArray(payload) ? payload : []);
     } catch (leadError) {
       console.error("[API ERROR] [FETCH LEADS]", leadError);
       /* screening data is non-critical */
@@ -164,10 +163,37 @@ export default function AdminDashboardPage() {
     try {
       setEmailSending(sendKey);
       setError("");
-      const body: Record<string, string> = { email: lead.email, name: lead.name, type };
-      if (type === "payment") body.paymentLink = "https://rzp.io/rzp/skillbridge";
-      if (type === "payment") body.deadline = "Within 24 Hours";
-      if (type === "onboarding") body.whatsappLink = "https://chat.whatsapp.com/skillbridge";
+      if (!lead.userId) {
+        throw new Error("User ID missing for this lead.");
+      }
+
+      const templateMap: Record<EmailStage, string> = {
+        selection: "SELECTION",
+        payment: "PAYMENT",
+        offer: "OFFER",
+        onboarding: "ONBOARDING",
+      };
+
+      const body: Record<string, unknown> = {
+        userId: lead.userId,
+        templateType: templateMap[type],
+        params: {},
+      };
+
+      if (type === "payment") {
+        body.params = {
+          paymentUrl: "https://rzp.io/rzp/skillbridge",
+          deadline: "Within 24 Hours",
+          programTitle: "SkillBridge Internship",
+        };
+      }
+
+      if (type === "onboarding") {
+        body.params = {
+          whatsappLink: "https://chat.whatsapp.com/skillbridge",
+          programTitle: "SkillBridge Internship",
+        };
+      }
       
       await api.sendAdminMail(body);
       await loadScreeningLeads();

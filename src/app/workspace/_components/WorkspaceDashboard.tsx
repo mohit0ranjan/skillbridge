@@ -1,358 +1,260 @@
 "use client";
 
-import { useState } from "react";
-import { Layout, Folder, CheckSquare, Upload, LogOut, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2, LogOut, Save, Send } from "lucide-react";
+import {
+  api,
+  ApiError,
+  WORKSPACE_TOKEN_KEY,
+  WORKSPACE_USER_KEY,
+  type WorkspaceProject,
+  type WorkspaceProgress,
+  type WorkspaceSubmission,
+  type InternProfile,
+} from "@/lib/api";
+
+type Tab = "projects" | "progress" | "submission";
+
+const EMPTY_PROGRESS: WorkspaceProgress = {
+  week1: false,
+  week2: false,
+  week3: false,
+  week4: false,
+};
 
 export default function WorkspaceDashboard() {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [selectedProject, setSelectedProject] = useState<number | null>(null);
-  const [progress, setProgress] = useState([false, false, false, false]);
-  const [githubLink, setGithubLink] = useState("");
-  const [submissionStatus, setSubmissionStatus] = useState<"none" | "pending" | "approved" | "rejected">("none");
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>("projects");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [projects, setProjects] = useState<WorkspaceProject[]>([]);
+  const [profile, setProfile] = useState<InternProfile>({});
+  const [progress, setProgress] = useState<WorkspaceProgress>(EMPTY_PROGRESS);
+  const [submission, setSubmission] = useState<WorkspaceSubmission | null>(null);
+  const [githubUrl, setGithubUrl] = useState("");
 
-  const projects = [
-    { id: 1, title: "Landing Page Clone", difficulty: "Easy", desc: "Build a responsive static landing page with modern semantics and clean CSS." },
-    { id: 2, title: "To-Do Application", difficulty: "Easy", desc: "Create a functional, persistent task planner relying on local storage APIs." },
-    { id: 3, title: "Auth Flow Implementation", difficulty: "Medium", desc: "Set up secure JWT-based authentication endpoints and middleware validation." },
-    { id: 4, title: "CRUD Dashboard", difficulty: "Medium", desc: "Develop a functional data grid supporting complex sorting and filtering." },
-    { id: 5, title: "E-Commerce Cart", difficulty: "Hard", desc: "Implement robust global state management and a full checkout workflow." },
-    { id: 6, title: "Real-time Chat", difficulty: "Hard", desc: "Build a scalable socket-based chatting application with isolated rooms." },
-  ];
+  const selectedProject = useMemo(
+    () => projects.find((item) => item.id === profile.selectedProjectId) || null,
+    [projects, profile.selectedProjectId],
+  );
 
-  const toggleProgress = (index: number) => {
-    const newProgress = [...progress];
-    newProgress[index] = !newProgress[index];
-    setProgress(newProgress);
-  };
+  const completedWeeks = useMemo(() => {
+    return [progress.week1, progress.week2, progress.week3, progress.week4].filter(Boolean).length;
+  }, [progress]);
 
-  const handleSelectProject = (id: number) => {
-    if (selectedProject !== null) return;
-    setSelectedProject(id);
-    setActiveTab("progress");
-  };
+  const loadWorkspace = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const [projectRows, progressRows, currentSubmission] = await Promise.all([
+        api.getWorkspaceProjects(),
+        api.getWorkspaceProgress(),
+        api.getWorkspaceSubmission(),
+      ]);
+      setProjects(projectRows || []);
+      setProfile(progressRows.internProfile || {});
+      setProgress(progressRows.workspaceProgress || EMPTY_PROGRESS);
+      setSubmission(currentSubmission || null);
+      if (currentSubmission?.githubLink) {
+        setGithubUrl(currentSubmission.githubLink);
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Unable to load workspace.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const handleSubmission = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!githubLink) return;
-    setSubmissionStatus("pending");
-  };
+  useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem(WORKSPACE_TOKEN_KEY) : null;
+    if (!token) {
+      router.replace("/workspace/login");
+      return;
+    }
+    void loadWorkspace();
+  }, [loadWorkspace, router]);
 
-  const completedWeeks = progress.filter(Boolean).length;
-  const currentProgressPercent = (completedWeeks / 4) * 100;
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard":
-        return (
-          <div className="max-w-4xl animate-fade-in mx-auto">
-            <header className="mb-8 pb-6 border-b border-gray-200">
-              <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Welcome to your workspace</h1>
-              <p className="text-sm text-gray-500 mt-1">Manage your project, track weekly progress, and submit final deliverables.</p>
-            </header>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* Active Project Card */}
-              <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-gray-300 transition-colors">
-                <div className="flex items-center gap-3 mb-6 text-sm font-medium text-gray-500">
-                  <Folder className="w-4 h-4 text-emerald-600" />
-                  Your Project
-                </div>
-                {selectedProject !== null ? (
-                  <>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      {projects.find((p) => p.id === selectedProject)?.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-6 line-clamp-2">
-                      {projects.find((p) => p.id === selectedProject)?.desc}
-                    </p>
-                    <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 shadow-sm">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      In progress
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No project selected</h3>
-                    <p className="text-sm text-gray-500 mb-6">Select an assignment to begin your internship journey.</p>
-                    <button
-                      onClick={() => setActiveTab("projects")}
-                      className="text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-lg transition-colors w-fit shadow-sm"
-                    >
-                      Browse Projects
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Progress Overview Card */}
-              <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-gray-300 transition-colors">
-                <div className="flex items-center gap-3 mb-6 text-sm font-medium text-gray-500">
-                  <CheckSquare className="w-4 h-4 text-emerald-600" />
-                  Program Progress
-                </div>
-                <div className="flex items-end justify-between mb-3">
-                  <div className="text-4xl font-semibold text-gray-900 tracking-tight">{currentProgressPercent}%</div>
-                  <div className="text-sm text-gray-500 font-medium mb-1">{completedWeeks} of 4 weeks</div>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5 mb-6 overflow-hidden">
-                  <div 
-                    className="bg-emerald-600 h-full transition-all duration-700 ease-out" 
-                    style={{ width: `${currentProgressPercent}%` }}
-                  ></div>
-                </div>
-                <button
-                  onClick={() => setActiveTab("progress")}
-                  disabled={selectedProject === null}
-                  className="text-sm font-medium text-gray-900 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors group"
-                >
-                  View timeline <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      case "projects":
-        return (
-          <div className="max-w-5xl animate-fade-in mx-auto">
-            <header className="mb-8 pb-6 border-b border-gray-200 flex justify-between items-end">
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Available Projects</h1>
-                <p className="text-sm text-gray-500 mt-1">Review the assignments below. You may only select and commit to one project.</p>
-              </div>
-            </header>
-            
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {projects.map((p) => {
-                const isSelected = selectedProject === p.id;
-                const isDisabled = selectedProject !== null && !isSelected;
-                
-                let badgeStyle = "text-emerald-700 bg-emerald-50 border-emerald-200";
-                if (p.difficulty === "Medium") badgeStyle = "text-amber-700 bg-amber-50 border-amber-200";
-                if (p.difficulty === "Hard") badgeStyle = "text-rose-700 bg-rose-50 border-rose-200";
-
-                return (
-                  <div 
-                    key={p.id} 
-                    className={`flex flex-col p-6 rounded-2xl border transition-all duration-200 ${
-                      isSelected 
-                        ? "border-emerald-600 ring-1 ring-emerald-600 bg-emerald-50/20 shadow-sm" 
-                        : isDisabled 
-                          ? "opacity-50 pointer-events-none border-gray-100 bg-gray-50/50" 
-                          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-lg font-bold">
-                        {p.title.charAt(0)}
-                      </div>
-                      <span className={`px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase rounded flex items-center border ${badgeStyle}`}>
-                        {p.difficulty}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-gray-900 text-base mb-2">{p.title}</h3>
-                    <p className="text-sm text-gray-600 mb-8 leading-relaxed flex-1">{p.desc}</p>
-                    
-                    <button
-                      onClick={() => handleSelectProject(p.id)}
-                      disabled={isDisabled || isSelected}
-                      className={`w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200 border ${
-                        isSelected 
-                          ? "bg-gray-100 text-gray-500 border-transparent cursor-default" 
-                          : "bg-white text-emerald-700 border-gray-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600"
-                      }`}
-                    >
-                      {isSelected ? "Committed" : "Select Project"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      case "progress":
-        return (
-          <div className="max-w-3xl animate-fade-in mx-auto">
-            <header className="mb-8 pb-6 border-b border-gray-200 flex items-end justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Weekly Deliverables</h1>
-                <p className="text-sm text-gray-500 mt-1">Mark weeks complete as you finish the corresponding tasks.</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-900">{currentProgressPercent}% Complete</span>
-              </div>
-            </header>
-            
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              {[1, 2, 3, 4].map((week, index) => {
-                const isComplete = progress[index];
-                return (
-                  <div 
-                    key={week} 
-                    className={`flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 p-6 transition-colors ${
-                      index !== 3 ? "border-b border-gray-100" : ""
-                    } hover:bg-gray-50/50`}
-                  >
-                    <button
-                      onClick={() => toggleProgress(index)}
-                      className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
-                        isComplete 
-                          ? "bg-emerald-100 text-emerald-600" 
-                          : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-                      }`}
-                    >
-                       {isComplete ? <CheckCircle2 className="w-5 h-5" /> : <div className="w-2.5 h-2.5 rounded-sm bg-gray-300"></div>}
-                    </button>
-                    <div className="flex-1">
-                      <h3 className={`font-medium mb-1 text-base ${isComplete ? "text-gray-900" : "text-gray-900"}`}>
-                        Week {week} Milestones
-                      </h3>
-                      <p className="text-sm text-gray-500 leading-relaxed">
-                        Finalize all core layout structures, integrate state management securely, and ensure local repository builds without warnings.
-                      </p>
-                    </div>
-                    {isComplete && (
-                      <span className="hidden sm:inline-flex text-xs font-semibold text-emerald-600 tracking-wide uppercase bg-emerald-50 px-2 py-1 rounded">
-                         Done
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      case "submission":
-        return (
-          <div className="max-w-2xl animate-fade-in mx-auto">
-            <header className="mb-8 pb-6 border-b border-gray-200">
-              <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Final Submission</h1>
-              <p className="text-sm text-gray-500 mt-1">Submit your completed assignment for mentor review.</p>
-            </header>
-            
-            {submissionStatus === "none" ? (
-              <form onSubmit={handleSubmission} className="bg-white p-8 border border-gray-200 rounded-2xl shadow-sm">
-                <div className="mb-8">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Repository URL</label>
-                  <p className="text-sm text-gray-500 mb-4">Please ensure your repository is public or accessible to our reviewers.</p>
-                  <input
-                    type="url"
-                    required
-                    value={githubLink}
-                    onChange={(e) => setGithubLink(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600 transition-all bg-gray-50 focus:bg-white"
-                    placeholder="https://github.com/username/repository"
-                  />
-                </div>
-                
-                <div className="flex gap-4 p-5 bg-[#F9F9FB] rounded-xl border border-gray-200 mb-8">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-gray-500 mt-0.5" />
-                  <p className="text-sm leading-relaxed text-gray-600">
-                    Submissions are final. Make sure you have verified all functionality, tested your deployment, and included a comprehensive <code className="text-xs bg-gray-200 px-1 py-0.5 rounded ml-1">README.md</code> before proceeding.
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-emerald-600 text-white py-3 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm flex justify-center items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Submit Project
-                </button>
-              </form>
-            ) : (
-              <div className="bg-white p-12 border border-gray-200 rounded-2xl shadow-sm text-center">
-                <div className="mx-auto w-16 h-16 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <h3 className="text-2xl font-semibold text-gray-900 tracking-tight mb-3">Under Review</h3>
-                <p className="text-sm text-gray-500 max-w-sm mx-auto mb-10 leading-relaxed">
-                  Your project has been successfully submitted. Our senior mentors will evaluate your work and provide feedback.
-                </p>
-                
-                <div className="text-left bg-[#F9F9FB] rounded-xl p-5 border border-gray-200/60 inline-block w-full max-w-md">
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Submitted Link</p>
-                  <p className="text-sm font-mono text-gray-700 truncate select-all">{githubLink}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      default:
-        return null;
+  const handleSelectProject = async (projectId: string) => {
+    try {
+      setSaving(true);
+      setError("");
+      await api.selectWorkspaceProject(projectId);
+      await loadWorkspace();
+      setActiveTab("progress");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to select project.");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const handleToggleWeek = async (week: number) => {
+    try {
+      setSaving(true);
+      setError("");
+      const key = `week${week}` as const;
+      const nextStatus = !progress[key];
+      await api.updateWorkspaceProgress(week, nextStatus);
+      setProgress((prev) => ({ ...prev, [key]: nextStatus }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to update progress.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmitProject = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!githubUrl.trim()) return;
+
+    try {
+      setSaving(true);
+      setError("");
+      await api.submitWorkspaceProject({ githubUrl: githubUrl.trim() });
+      await loadWorkspace();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to submit project.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(WORKSPACE_TOKEN_KEY);
+    localStorage.removeItem(WORKSPACE_USER_KEY);
+    router.replace("/workspace/login");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-[#FDFDFD] font-sans antialiased text-gray-900">
-      {/* 
-        Ultra Minimal Sidebar - Notion/Linear Inspired 
-      */}
-      <aside className="w-[260px] bg-[#F7F7F8] border-r border-gray-200 flex-col justify-between hidden md:flex shrink-0">
-        <div>
-          <div className="h-16 flex items-center px-6 mt-2">
-             <div className="w-5 h-5 rounded-[6px] bg-emerald-600 mr-3 shadow-sm"></div>
-             <span className="font-bold text-[16px] text-emerald-600 tracking-tight">
-               SkillBridge <span className="text-[#0F172A] font-semibold">Workspace</span>
-             </span>
-          </div>
-          
-          <div className="px-3 pt-6">
-            <div className="text-[11px] font-medium text-gray-400 mb-2 px-3">Overview</div>
-            <nav className="space-y-0.5">
-              <NavItem icon={<Layout size={15} />} label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
-              <NavItem icon={<Folder size={15} />} label="Projects" active={activeTab === "projects"} onClick={() => setActiveTab("projects")} />
-              <NavItem icon={<CheckSquare size={15} />} label="Timeline" active={activeTab === "progress"} onClick={() => setActiveTab("progress")} disabled={selectedProject === null} />
-              <NavItem icon={<Upload size={15} />} label="Submission" active={activeTab === "submission"} onClick={() => setActiveTab("submission")} disabled={selectedProject === null} />
-            </nav>
-          </div>
-        </div>
-
-        <div className="p-3 mb-2">
-          <a href="/workspace/login" className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-200/50 rounded-lg transition-colors w-full">
-            <LogOut size={15} />
-            Log out
-          </a>
-        </div>
-      </aside>
-
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
-        {/* Minimal Topbar */}
-        <header className="h-14 border-b border-gray-100 flex items-center justify-between px-8 lg:px-12 shrink-0 bg-white">
-          <div className="flex items-center text-sm text-gray-500 font-medium capitalize">
-             {activeTab === "progress" ? "Timeline" : activeTab}
-          </div>
-          <div className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 py-1.5 px-2 rounded-lg transition-colors">
-             <div className="text-sm text-gray-700 font-medium">Intern</div>
-             <div className="w-6 h-6 bg-emerald-600 rounded-full flex items-center justify-center text-white font-medium text-[11px] shadow-sm">
-               IN
-             </div>
+    <div className="min-h-screen bg-[#F8F9FA] text-[#0F172A] p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-[0_2px_12px_rgb(0,0,0,0.03)]">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[12px] uppercase tracking-[0.16em] text-[#64748B] font-semibold">Workspace</p>
+              <h1 className="mt-2 text-[28px] font-black tracking-tight text-[#0F172A]">Intern Dashboard</h1>
+              <p className="mt-2 text-sm text-[#64748B]">Select one project, track your weekly progress, and submit once for review.</p>
+            </div>
+            <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">
+              <LogOut className="h-4 w-4" /> Logout
+            </button>
           </div>
         </header>
 
-        {/* Clean Content Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-12 md:px-12 lg:px-20 custom-scrollbar relative">
-          {renderContent()}
-        </div>
-      </main>
-    </div>
-  );
-}
+        {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-function NavItem({ icon, label, active, onClick, disabled }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
-        active 
-          ? "bg-white text-emerald-700 shadow-[0_1px_3px_rgb(0,0,0,0.04)] border border-gray-200/50" 
-          : disabled 
-            ? "opacity-40 cursor-not-allowed text-gray-400 border border-transparent" 
-            : "text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 border border-transparent"
-      }`}
-    >
-      <span className={`${active ? "text-emerald-600" : "text-gray-400"}`}>{icon}</span>
-      {label}
-    </button>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <button onClick={() => setActiveTab("projects")} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${activeTab === "projects" ? "border-emerald-600 bg-emerald-50 text-emerald-700" : "border-[#E2E8F0] bg-white text-[#334155]"}`}>
+            1. Project
+          </button>
+          <button onClick={() => setActiveTab("progress")} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${activeTab === "progress" ? "border-emerald-600 bg-emerald-50 text-emerald-700" : "border-[#E2E8F0] bg-white text-[#334155]"}`}>
+            2. Progress ({completedWeeks}/4)
+          </button>
+          <button onClick={() => setActiveTab("submission")} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${activeTab === "submission" ? "border-emerald-600 bg-emerald-50 text-emerald-700" : "border-[#E2E8F0] bg-white text-[#334155]"}`}>
+            3. Submission
+          </button>
+        </div>
+
+        {activeTab === "projects" && (
+          <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-[0_2px_12px_rgb(0,0,0,0.03)]">
+            <h2 className="text-lg font-bold text-[#0F172A]">Select your project</h2>
+            <p className="mt-1 text-sm text-[#64748B]">Project selection is locked after the first choice.</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {projects.map((project) => {
+                const isSelected = selectedProject?.id === project.id;
+                const isLocked = Boolean(profile.selectedProjectId) && !isSelected;
+                return (
+                  <article key={project.id} className={`rounded-xl border p-4 ${isSelected ? "border-emerald-600 bg-emerald-50/40" : "border-[#E2E8F0] bg-white"}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold text-[#0F172A]">{project.title}</h3>
+                      <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#475569]">{project.difficulty}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-[#64748B]">{project.description}</p>
+                    <button
+                      disabled={isLocked || isSelected || saving}
+                      onClick={() => handleSelectProject(project.id)}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                    >
+                      {isSelected ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                      {isSelected ? "Selected" : "Select"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "progress" && (
+          <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-[0_2px_12px_rgb(0,0,0,0.03)]">
+            <h2 className="text-lg font-bold text-[#0F172A]">Weekly progress</h2>
+            <p className="mt-1 text-sm text-[#64748B]">Current project: {selectedProject?.title || "No project selected"}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((week) => {
+                const key = `week${week}` as const;
+                const done = progress[key];
+                return (
+                  <button
+                    key={week}
+                    onClick={() => handleToggleWeek(week)}
+                    disabled={saving}
+                    className={`rounded-xl border p-4 text-left ${done ? "border-emerald-600 bg-emerald-50" : "border-[#E2E8F0] bg-white"}`}
+                  >
+                    <p className="text-xs uppercase tracking-wide text-[#64748B]">Week {week}</p>
+                    <p className="mt-2 text-sm font-semibold text-[#0F172A]">{done ? "Completed" : "Mark complete"}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "submission" && (
+          <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-[0_2px_12px_rgb(0,0,0,0.03)]">
+            <h2 className="text-lg font-bold text-[#0F172A]">Final submission</h2>
+            <p className="mt-1 text-sm text-[#64748B]">Status: {submission?.status || "Not submitted"}</p>
+            <form onSubmit={handleSubmitProject} className="mt-4 space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#64748B]">Github repository URL</span>
+                <input
+                  value={githubUrl}
+                  onChange={(event) => setGithubUrl(event.target.value)}
+                  placeholder="https://github.com/username/project"
+                  className="w-full rounded-xl border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-emerald-600 focus:outline-none"
+                  required
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={saving || !selectedProject}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" /> Submit project
+              </button>
+            </form>
+            {submission && (
+              <div className="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#334155]">
+                <p><span className="font-semibold">Latest link:</span> {submission.githubLink}</p>
+                <p className="mt-1"><span className="font-semibold">Feedback:</span> {submission.feedback || "Pending review"}</p>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

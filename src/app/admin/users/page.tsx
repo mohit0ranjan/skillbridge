@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Loader2, Search, CalendarDays, ArrowRight } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { api } from "@/lib/api";
 
 type AdminUserRow = {
   id: string;
@@ -33,27 +34,10 @@ export default function AdminUsersPage() {
   const [searching, setSearching] = useState(false);
 
   const fetchUsers = async (search = "") => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
-    if (!token) {
-      setError("Admin session not found.");
-      setUsers([]);
-      setLoading(false);
-      return;
-    }
-
-    console.log(`[FETCH USERS] /api/admin/users query=${search.trim() || "<none>"}`);
-    const response = await fetch(`/api/admin/users${search.trim() ? `?q=${encodeURIComponent(search.trim())}` : ""}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-
-    const payload = (await response.json()) as { success?: boolean; message?: string; data?: AdminUserRow[] };
-
-    if (!response.ok || !payload.success) {
-      throw new Error(payload.message || "Failed to load users.");
-    }
-
-    setUsers(Array.isArray(payload.data) ? payload.data : []);
+    const normalized = search.trim();
+    console.log(`[FETCH USERS] /admin/users query=${normalized || "<none>"}`);
+    const rows = await api.getAdminUsers({ search: normalized || undefined, limit: 200, page: 1 });
+    setUsers(rows as AdminUserRow[]);
   };
 
   useEffect(() => {

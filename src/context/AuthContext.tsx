@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { api, AuthResponse, ApiError } from "@/lib/api";
+import { api, AuthResponse, AUTH_TOKEN_KEY, AUTH_USER_KEY, WORKSPACE_TOKEN_KEY, WORKSPACE_USER_KEY } from "@/lib/api";
 
 type User = {
   id: string;
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
-    const token = localStorage.getItem("sb_token");
-    const stored = localStorage.getItem("sb_user");
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const stored = localStorage.getItem(AUTH_USER_KEY);
     if (!token) return;
     try {
       const me = await api.getMe();
@@ -46,11 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         year: me.year ?? storedUser?.year,
       };
 
-      localStorage.setItem("sb_user", JSON.stringify(userData));
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
       setUser(userData);
     } catch {
-      localStorage.removeItem("sb_token");
-      localStorage.removeItem("sb_user");
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+      localStorage.removeItem(WORKSPACE_TOKEN_KEY);
+      localStorage.removeItem(WORKSPACE_USER_KEY);
       setUser(null);
     }
   }, []);
@@ -81,8 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: data.role,
       emailVerified: data.emailVerified,
     };
-    localStorage.setItem("sb_token", data.token);
-    localStorage.setItem("sb_user", JSON.stringify(userData));
+    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
     setUser(userData);
   }, []);
 
@@ -99,8 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [saveAuth]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("sb_token");
-    localStorage.removeItem("sb_user");
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+    localStorage.removeItem(WORKSPACE_TOKEN_KEY);
+    localStorage.removeItem(WORKSPACE_USER_KEY);
     setUser(null);
   }, []);
 

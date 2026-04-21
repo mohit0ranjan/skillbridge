@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { api } from "@/lib/api";
 
 type ScreeningStatus = "applied" | "under_review" | "selected" | "converted";
 
@@ -60,26 +61,9 @@ export default function AdminScreeningLeadsPage() {
   const [leads, setLeads] = useState<ScreeningLead[]>([]);
 
   const loadLeads = async () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("sb_token") : "";
-    if (!token) {
-      setError("Admin session not found.");
-      setLeads([]);
-      setLoading(false);
-      return;
-    }
-
-    console.log("[FETCH LEADS] /api/admin/screening-leads");
-    const response = await fetch("/api/admin/screening-leads", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-
-    const payload = (await response.json()) as { success?: boolean; message?: string; data?: ScreeningLead[] };
-    if (!response.ok || !payload.success) {
-      throw new Error(payload.message || "Failed to load screening leads.");
-    }
-
-    setLeads(Array.isArray(payload.data) ? payload.data : []);
+    console.log("[FETCH LEADS] /admin/screening-leads");
+    const payload = await api.getAdminScreeningLeads();
+    setLeads(Array.isArray(payload) ? (payload as ScreeningLead[]) : []);
   };
 
   useEffect(() => {

@@ -2,19 +2,38 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { api, ApiError, WORKSPACE_TOKEN_KEY, WORKSPACE_USER_KEY } from "@/lib/api";
 
 export default function WorkspaceLogin() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.includes("admin")) {
-      router.push("/admin/workspace");
-    } else {
-      router.push("/workspace/dashboard");
+    try {
+      setLoading(true);
+      setError("");
+      const auth = await api.workspaceLogin({ email, password });
+      localStorage.setItem(WORKSPACE_TOKEN_KEY, auth.token);
+      localStorage.setItem(WORKSPACE_USER_KEY, JSON.stringify({
+        id: auth.id,
+        name: auth.name,
+        email: auth.email,
+        role: auth.role,
+      }));
+      router.replace("/workspace/dashboard");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Unable to login. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -31,6 +50,7 @@ export default function WorkspaceLogin() {
 
         {/* Minimal Login Card */}
         <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgb(0,0,0,0.03)] border border-[#E2E8F0]/80 p-8 sm:p-10 mb-8">
+          {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <label className="block text-[12px] font-semibold text-[#334155] mb-2">Email</label>
@@ -71,16 +91,18 @@ export default function WorkspaceLogin() {
 
             <button
               type="submit"
+              disabled={loading}
               className="w-full bg-emerald-600 text-white rounded-[10px] py-3 text-[13px] font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 mt-2"
             >
-              Continue <ChevronRight size={14} className="opacity-90" strokeWidth={2.5} />
+              {loading ? <Loader2 size={14} className="opacity-90 animate-spin" strokeWidth={2.5} /> : <ChevronRight size={14} className="opacity-90" strokeWidth={2.5} />}
+              {loading ? "Signing in..." : "Continue"}
             </button>
           </form>
         </div>
 
         {/* Footer link */}
-        <div className="text-center text-[13px] text-[#64748B] font-medium">
-           Don't have an intern account? <a href="#" className="text-emerald-700 hover:text-emerald-800 hover:underline">Contact support.</a>
+          <div className="text-center text-[13px] text-[#64748B] font-medium">
+            Don&apos;t have an intern account? <a href="#" className="text-emerald-700 hover:text-emerald-800 hover:underline">Contact support.</a>
         </div>
       </div>
     </div>

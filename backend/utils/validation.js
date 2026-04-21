@@ -98,7 +98,7 @@ const schemas = {
     internshipId: Joi.string().uuid().required(),
   }),
 
-  // Tasks - for evaluation (admin only)
+  // Tasks - for evaluation  // Admin Actions
   evaluateSubmission: Joi.object({
     status: Joi.string().valid('UNDER_REVIEW', 'APPROVED', 'REJECTED').required(),
     feedback: Joi.string().max(5000).optional().allow(null),
@@ -106,7 +106,17 @@ const schemas = {
 
   reviewFinalSubmission: Joi.object({
     status: Joi.string().valid('APPROVED', 'REJECTED').required(),
-    feedback: Joi.string().max(5000).optional().allow(null),
+    feedback: Joi.string().max(5000).optional().allow(null, ''),
+  }),
+  
+  createInternAccount: Joi.object({
+    name: Joi.string().min(2).max(100).required().trim(),
+    email: Joi.string().email().required().lowercase(),
+    password: Joi.string().min(6).max(50).required()
+  }),
+
+  updateUserRole: Joi.object({
+    role: Joi.string().valid('USER', 'ADMIN', 'INTERN').required(),
   }),
 
   // Auth - password reset
