@@ -20,6 +20,7 @@ type AuthContextType = {
   signup: (data: { name: string; email: string; password: string; college?: string; year?: string }) => Promise<AuthResponse>;
   logout: () => void;
   isAuthenticated: boolean;
+  fetchUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,48 +29,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchUser = useCallback(async () => {
+    const token = localStorage.getItem("sb_token");
+    const stored = localStorage.getItem("sb_user");
+    if (!token) return;
+    try {
+      const me = await api.getMe();
+      const storedUser = stored ? JSON.parse(stored) : null;
+      const userData: User = {
+        id: me.id,
+        name: me.name,
+        email: me.email,
+        role: me.role,
+        emailVerified: me.emailVerified,
+        college: me.college ?? storedUser?.college,
+        year: me.year ?? storedUser?.year,
+      };
+
+      localStorage.setItem("sb_user", JSON.stringify(userData));
+      setUser(userData);
+    } catch {
+      localStorage.removeItem("sb_token");
+      localStorage.removeItem("sb_user");
+      setUser(null);
+    }
+  }, []);
+
   // Hydrate and validate existing auth state on mount
   useEffect(() => {
     let isMounted = true;
 
     async function hydrateAuth() {
-      const token = localStorage.getItem("sb_token");
-      const stored = localStorage.getItem("sb_user");
-
-      if (!token) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-
-      try {
-        const me = await api.getMe();
-        const storedUser = stored ? JSON.parse(stored) : null;
-        const userData: User = {
-          id: me.id,
-          name: me.name,
-          email: me.email,
-          role: me.role,
-          emailVerified: me.emailVerified,
-          college: me.college ?? storedUser?.college,
-          year: me.year ?? storedUser?.year,
-        };
-
-        localStorage.setItem("sb_user", JSON.stringify(userData));
-        if (isMounted) setUser(userData);
-      } catch {
-        localStorage.removeItem("sb_token");
-        localStorage.removeItem("sb_user");
-        if (isMounted) setUser(null);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      if (!isMounted) return;
+      await fetchUser();
+      if (isMounted) setLoading(false);
     }
 
     hydrateAuth();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [fetchUser]);
 
   const saveAuth = useCallback((data: AuthResponse) => {
     const userData: User = {
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, isAuthenticated: !!user, fetchUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -166,6 +166,20 @@ const schemas = {
     status: Joi.string().valid('approved', 'rejected', 'APPROVED', 'REJECTED').required(),
     feedback: Joi.string().max(5000).optional().allow(null, ''),
   }),
+
+  // ────────────────────────────────────────────────
+  // SCREENING PIPELINE
+  // ────────────────────────────────────────────────
+
+  submitScreening: Joi.object({
+    answers: Joi.object().required(),
+  }),
+
+  reviewScreening: Joi.object({
+    status: Joi.string().valid('UNDER_REVIEW', 'SELECTED', 'REJECTED').required(),
+    score: Joi.number().min(0).max(100).optional(),
+    feedback: Joi.string().max(5000).optional().allow(null, ''),
+  }),
 };
 
 /**

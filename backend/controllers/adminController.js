@@ -5,6 +5,8 @@ const { parsePagination, paginatedResult } = require('../utils/pagination');
 const { createOrReturnCertificate } = require('./learningController');
 const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
+const { sanitizeParams } = require('../utils/sanitize');
+const { recordAudit } = require('../utils/auditLog');
 const {
   getWelcomeEmailHtml,
   getEnrollmentConfirmationEmailHtml,
@@ -13,6 +15,9 @@ const {
   getSupportReplyEmailHtml,
   renderPremiumEmail,
 } = require('../utils/emailTemplates');
+
+// H4 FIX: Super-admin email whitelist — only these admins can promote others to ADMIN.
+const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 
 /**
@@ -155,6 +160,8 @@ const getUserDetails = async (req, res, next) => {
 
 /**
  * Update user role (admin only)
+ * H4 FIX: Only super-admins (whitelisted emails) can promote to ADMIN.
+ * C3 FIX: Increment tokenVersion to invalidate existing sessions on role change.
  */
 const updateUserRole = async (req, res, next) => {
   try {
@@ -166,9 +173,26 @@ const updateUserRole = async (req, res, next) => {
       return next(new ApiError('Cannot change your own role', 403, 'FORBIDDEN'));
     }
 
+    // H4 FIX: Only super-admins can promote to ADMIN
+    if (role === 'ADMIN') {
+      const callerEmail = (req.user.email || '').toLowerCase();
+      if (SUPER_ADMIN_EMAILS.length > 0 && !SUPER_ADMIN_EMAILS.includes(callerEmail)) {
+        return next(new ApiError('Only super-admins can promote users to ADMIN', 403, 'INSUFFICIENT_PRIVILEGE'));
+      }
+    }
+
+    // C3 FIX: Increment tokenVersion to force re-login after role change
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { role }
+      data: { role, tokenVersion: { increment: 1 } }
+    });
+
+    // M6 FIX: Record audit log
+    await recordAudit({
+      adminId: req.user.id,
+      action: 'UPDATE_ROLE',
+      targetId: userId,
+      metadata: { newRole: role, previousRole: req.user.role },
     });
 
     res.json(ApiResponse.success(
@@ -419,7 +443,9 @@ const reviewFinalProjectSubmission = async (req, res, next) => {
  */
 const sendAdminEmail = async (req, res, next) => {
   try {
-    const { userId, templateType, params } = req.validatedBody;
+    const { userId, templateType, params: rawParams } = req.validatedBody;
+    // H3 FIX: sanitize all user-supplied template params to prevent XSS injection
+    const params = sanitizeParams(rawParams || {});
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -550,6 +576,14 @@ const sendAdminEmail = async (req, res, next) => {
 
     await emailService.send({ to: user.email, subject, html });
     logger.info('admin.send_email.sent', { userId, templateType, email: user.email });
+
+    // M6 FIX: Record audit log for email dispatch
+    await recordAudit({
+      adminId: req.user.id,
+      action: 'SEND_EMAIL',
+      targetId: userId,
+      metadata: { templateType, email: user.email },
+    });
 
     res.json(ApiResponse.success(
       { userId, templateType, email: user.email },

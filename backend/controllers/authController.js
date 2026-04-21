@@ -9,7 +9,14 @@ const {
   getPasswordResetRequestEmailHtml,
   getPasswordResetSuccessEmailHtml,
 } = require('../utils/emailTemplates');
-const { isDatabaseUnavailableError, getFallbackUserByEmail, getFallbackUserById, fallbackUsers } = require('../utils/devFallback');
+const { isDatabaseUnavailableError } = require('../utils/dbErrors');
+
+// C7 FIX: devFallback loaded conditionally — crashes production if loaded unconditionally
+let devFallback = {};
+if (process.env.NODE_ENV === 'development') {
+  try { devFallback = require('../utils/devFallback'); } catch { /* dev fallback not available */ }
+}
+const { getFallbackUserByEmail, getFallbackUserById, fallbackUsers } = devFallback;
 
 
 /**
@@ -57,7 +64,7 @@ const signup = async (req, res, next) => {
     logger.info('auth.signup.user_created', { userId: user.id, email: user.email });
 
     // Generate JWT token
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, '7d', 'JWT_SECRET', 'auth', user.tokenVersion || 0);
     // Send onboarding email (non-blocking). Enrollment email is triggered only after paid enrollment.
     emailService.sendOnboardingWelcome({
       userEmail: user.email,
@@ -163,7 +170,7 @@ const login = async (req, res, next) => {
     }
 
     // Generate JWT token
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, '7d', 'JWT_SECRET', 'auth', user.tokenVersion || 0);
 
     const response = ApiResponse.success(
       {

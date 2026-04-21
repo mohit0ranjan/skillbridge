@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { generateToken } = require('../utils/jwt');
 const { sendWorkspaceCertificateEmail } = require('../services/workspaceCertificate.service');
 
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -391,7 +392,74 @@ const reviewSubmission = async (req, res, next) => {
   }
 };
 
+/**
+ * H2 FIX: Dedicated workspace login endpoint.
+ * Validates credentials AND checks that the user has INTERN role.
+ * Returns a workspace-scoped token.
+ * POST /workspace/login
+ */
+const workspaceLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return next(new ApiError('Email and password are required', 400, 'VALIDATION_ERROR'));
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        password: true,
+        role: true,
+        tokenVersion: true,
+        internProfile: true,
+      },
+    });
+
+    // Constant-time-safe: don't reveal whether email exists
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return next(new ApiError('Invalid credentials', 401, 'INVALID_CREDENTIALS'));
+    }
+
+    // H2 FIX: Strict role check — workspace is INTERN-only
+    if (user.role !== 'INTERN') {
+      return next(new ApiError(
+        'Workspace access requires intern status. Please complete the screening process first.',
+        403,
+        'NOT_AN_INTERN',
+      ));
+    }
+
+    // Issue workspace-scoped token
+    const token = generateToken(user.id, '7d', 'JWT_SECRET', 'workspace', user.tokenVersion || 0);
+
+    logger.info('workspace.login.success', { userId: user.id });
+
+    res.json(ApiResponse.success(
+      {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          hasProfile: !!user.internProfile,
+        },
+      },
+      'Workspace login successful',
+      200,
+    ));
+  } catch (error) {
+    logger.error('workspace.login.error', { errorMessage: error?.message });
+    next(internalError('Workspace login failed', 'WORKSPACE_LOGIN_FAILED', error));
+  }
+};
+
 module.exports = {
+  workspaceLogin,
   createInternUser,
   getInterns,
   getProjects,

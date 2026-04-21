@@ -17,6 +17,7 @@ const certificateRoutes = require('./routes/certificates');
 const ticketRoutes = require('./routes/tickets');
 const adminRoutes = require('./routes/admin');
 const workspaceRoutes = require('./routes/workspace');
+const screeningRoutes = require('./routes/screening');
 
 const app = express();
 
@@ -24,14 +25,25 @@ const app = express();
 // SECURITY MIDDLEWARE
 // ============================================
 
-// Helmet: Set various HTTP headers for security
-app.use(helmet());
+// L1/L2 FIX: Use Helmet with explicit CSP instead of deprecated X-XSS-Protection
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
 
 // Additional security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // L1 FIX: Removed deprecated X-XSS-Protection — use CSP instead
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -59,10 +71,18 @@ const corsOptions = {
     if (!origin && process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    // In production, only allow no-origin for health/webhooks
-    // (this is checked per-request via the middleware below)
+    // C8 FIX: In production, only allow null-origin for health/webhook paths.
+    // Deny all other null-origin requests in the CORS callback itself.
+    if (!origin && process.env.NODE_ENV === 'production') {
+      const isWhitelisted = NO_ORIGIN_ALLOWED_PATHS.some(p => req.path === p || req.path.startsWith(p));
+      if (!isWhitelisted) {
+        logger.warn('cors.blocked_null_origin', { path: req.path });
+        return callback(null, false);
+      }
+      return callback(null, true);
+    }
     if (!origin) {
-      return callback(null, true); // we check path in middleware
+      return callback(null, true); // dev: allow no-origin
     }
     logger.warn('cors.blocked_origin', { origin, allowedOrigins });
     callback(null, false);
@@ -90,8 +110,8 @@ if (process.env.NODE_ENV === 'production') {
 // REQUEST PARSING
 // ============================================
 
-// Razorpay webhook needs the raw body before JSON parsing consumes the stream.
-app.use(['/razorpay-webhook', '/webhooks/razorpay'], express.raw({ type: 'application/json' }));
+// M10 FIX: Razorpay webhook needs raw body — add explicit size limit
+app.use(['/razorpay-webhook', '/webhooks/razorpay'], express.raw({ type: 'application/json', limit: '1mb' }));
 
 // Body parsing with size limits
 app.use(express.json({ limit: '10kb' }));
@@ -264,10 +284,11 @@ apiRouter.use('/', certificateRoutes);
 apiRouter.use('/', ticketRoutes);
 apiRouter.use('/admin', adminLimiter, adminRoutes);
 apiRouter.use('/workspace', workspaceRoutes);
+apiRouter.use('/screening', screeningRoutes);
 
 app.use('/api/v1', apiRouter);
-// Backward compatibility: allow legacy clients that call unversioned routes (e.g. /auth/login).
-app.use('/', apiRouter);
+// H1 FIX: Removed legacy unversioned mount (`app.use('/', apiRouter)`).
+// This was bypassing rate limiters applied to /api/v1/* paths.
 
 // ============================================
 // ERROR HANDLING

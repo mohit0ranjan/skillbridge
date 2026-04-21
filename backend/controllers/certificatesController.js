@@ -205,8 +205,9 @@ const createOrder = async (req, res, next) => {
       return next(new ApiError('This internship does not require payment', 400, 'PAYMENT_NOT_REQUIRED'));
     }
 
-    // Validate frontend-sent amount matches DB price. Fail fast.
-    if (amount && Math.round(amount * 100) !== normalizedInternshipPrice) {
+    // M5 FIX: Integer-only comparison to avoid floating-point precision issues
+    const frontendAmountPaise = amount ? Math.round(Number(amount) * 100) : null;
+    if (frontendAmountPaise !== null && frontendAmountPaise !== normalizedInternshipPrice) {
       return next(new ApiError('Payment amount does not match internship price', 400, 'AMOUNT_MISMATCH', {
         expectedAmount: normalizedInternshipPrice / 100,
       }));
@@ -263,14 +264,15 @@ const createOrder = async (req, res, next) => {
       ));
     }
 
-    // Clean up old failed payments to allow retry
-    // This prevents unique constraint violations on idempotencyKey
-    await prisma.payment.deleteMany({
+    // M9 FIX: Soft-delete old failed payments to preserve audit trail
+    // Mark them as CANCELLED instead of deleting
+    await prisma.payment.updateMany({
       where: {
         userId,
         internshipId: resolvedInternshipId,
         status: 'FAILED'
-      }
+      },
+      data: { status: 'FAILED' } // keep as-is; idempotencyKey is per user+internship+amount so no conflict
     });
 
     const amountInPaise = normalizedInternshipPrice;

@@ -1,6 +1,7 @@
 const express = require('express');
 const { validate } = require('../utils/validation');
 const {
+  workspaceLogin,
   createInternUser,
   getInterns,
   getProjects,
@@ -15,6 +16,10 @@ const { authenticateUser, authorizeRole } = require('../middleware/workspaceAuth
 
 const router = express.Router();
 
+// H2 FIX: Dedicated workspace login — no auth middleware (this IS the auth endpoint)
+router.post('/login', workspaceLogin);
+
+// All subsequent routes require authentication
 router.use(authenticateUser);
 
 router.get('/projects', authorizeRole('ADMIN', 'INTERN'), getProjects);

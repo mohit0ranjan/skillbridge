@@ -3,8 +3,15 @@ const emailServiceModule = require('../services/email.service');
 const emailService = emailServiceModule.emailService || emailServiceModule;
 const { ApiResponse, ApiError, internalError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
-const { isDatabaseUnavailableError, buildFallbackDashboard } = require('../utils/devFallback');
+const { isDatabaseUnavailableError } = require('../utils/dbErrors');
 const { buildCurriculumTasks, groupTasksByWeek } = require('../utils/internshipCurriculum');
+
+// C7 FIX: devFallback loaded conditionally
+let devFallback = {};
+if (process.env.NODE_ENV === 'development') {
+  try { devFallback = require('../utils/devFallback'); } catch { /* not available */ }
+}
+const { buildFallbackDashboard } = devFallback;
 
 
 /**

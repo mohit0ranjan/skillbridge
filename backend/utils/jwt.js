@@ -19,10 +19,11 @@ const getSecret = (secretName = 'JWT_SECRET') => {
  * Generate a signed JWT with issuer/audience claims and purpose.
  * Default expiry: 7 days (reduced from 30d for security).
  * C5 FIX: purpose claim prevents token cross-use attacks.
+ * C3 FIX: tokenVersion enables server-side revocation.
  */
-const generateToken = (userId, expiresIn = '7d', secretName = 'JWT_SECRET', purpose = 'auth') => {
+const generateToken = (userId, expiresIn = '7d', secretName = 'JWT_SECRET', purpose = 'auth', tokenVersion = 0) => {
   return jwt.sign(
-    { id: userId, purpose },
+    { id: userId, purpose, tv: tokenVersion },
     getSecret(secretName),
     {
       expiresIn,

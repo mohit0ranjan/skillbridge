@@ -159,6 +159,70 @@ class ApiClient {
     return this.request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(body) });
   }
 
+  // H2 FIX: Dedicated workspace login
+  async workspaceLogin(body: { email: string; password: string }) {
+    return this.request<AuthResponse>('/workspace/login', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  // ────────────────────────────────────────────────
+  // SCREENING PIPELINE
+  // ────────────────────────────────────────────────
+
+  async submitScreening(body: { answers: any }) {
+    return this.request<GenericResponse>('/screening/submit', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async getScreeningStatus() {
+    return this.request<{ submission: ScreeningSubmission | null }>('/screening/status');
+  }
+
+  async getAdminScreeningSubmissions(filters?: { status?: string; page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set('status', filters.status);
+    if (filters?.page) query.set('page', filters.page.toString());
+    if (filters?.limit) query.set('limit', filters.limit.toString());
+    
+    const queryString = query.toString();
+    const endpoint = `/screening/admin${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request<PaginatedResponse<ScreeningSubmission>>(endpoint);
+  }
+
+  async reviewScreeningSubmission(submissionId: string, body: { status: 'UNDER_REVIEW' | 'SELECTED' | 'REJECTED'; score?: number; feedback?: string }) {
+    return this.request<GenericResponse>(`/screening/admin/${submissionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ────────────────────────────────────────────────
+  // WORKSPACE PIPELINE
+  // ────────────────────────────────────────────────
+
+  async getWorkspaceProjects() {
+    return this.request<WorkspaceProject[]>('/workspace/projects');
+  }
+
+  async selectWorkspaceProject(projectId: string) {
+    return this.request<GenericResponse>('/workspace/select-project', { method: 'POST', body: JSON.stringify({ projectId }) });
+  }
+
+  async getWorkspaceProgress() {
+    return this.request<{ internProfile: InternProfile; workspaceProgress: WorkspaceProgress }>('/workspace/progress');
+  }
+
+  async submitWorkspaceProject(body: { githubUrl: string; liveUrl?: string; comments?: string }) {
+    return this.request<{ submission: WorkspaceSubmission }>('/workspace/submit', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async getWorkspaceAdminInterns() {
+    return this.request<{ interns: any[] }>('/workspace/admin/interns');
+  }
+
+  async reviewWorkspaceSubmission(body: { submissionId: string; status: 'APPROVED' | 'REJECTED'; feedback?: string }) {
+    return this.request<GenericResponse>('/workspace/admin/review', { method: 'POST', body: JSON.stringify(body) });
+  }
+
   async getMe() {
     return this.request<UserProfile>('/auth/me');
   }
@@ -617,6 +681,62 @@ export type Task = {
   description?: string;
   week: number;
   internshipId: string;
+};
+
+export type PaginatedResponse<T> = {
+  items?: T[]; // Depending on how you structured paginatedResult wrapper
+  submissions?: T[];
+  tickets?: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+};
+
+export type ScreeningSubmission = {
+  id: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SELECTED' | 'REJECTED';
+  score?: number;
+  feedback?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; name: string; email: string; college?: string; year?: string };
+  answers?: any;
+};
+
+export type WorkspaceProject = {
+  id: string;
+  title: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  description: string;
+};
+
+export type WorkspaceProgress = {
+  selectedProjectId?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  githubUrl?: string;
+  liveUrl?: string;
+};
+
+export type InternProfile = {
+  id: string;
+  githubUrl?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+  college?: string;
+  year?: string;
+};
+
+export type WorkspaceSubmission = {
+  id: string;
+  githubUrl: string;
+  liveUrl?: string;
+  comments?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  feedback?: string;
+  createdAt: string;
 };
 
 export type GenericResponse = Record<string, unknown>;

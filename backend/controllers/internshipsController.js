@@ -1,7 +1,14 @@
 const prisma = require('../prisma');
 const { ApiResponse, ApiError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
-const { isDatabaseUnavailableError, getFallbackInternships, getFallbackInternshipById } = require('../utils/devFallback');
+const { isDatabaseUnavailableError } = require('../utils/dbErrors');
+
+// C7 FIX: devFallback loaded conditionally
+let devFallback = {};
+if (process.env.NODE_ENV === 'development') {
+  try { devFallback = require('../utils/devFallback'); } catch { /* not available */ }
+}
+const { getFallbackInternships, getFallbackInternshipById } = devFallback;
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 

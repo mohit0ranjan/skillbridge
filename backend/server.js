@@ -113,11 +113,21 @@ function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+// L6 FIX: Exit on unhandled rejections (matches Node.js >=15 default behavior)
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('process.unhandled_rejection', { reason: String(reason) });
+  // L5 FIX: Log full stack trace for debugging
+  logger.error('process.unhandled_rejection', {
+    reason: String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+  setTimeout(() => process.exit(1), 1000).unref();
 });
 
 process.on('uncaughtException', (err) => {
-  logger.error('process.uncaught_exception', { error: err?.message });
+  // L5 FIX: Log full stack trace for debugging
+  logger.error('process.uncaught_exception', {
+    error: err?.message,
+    stack: err?.stack,
+  });
   setTimeout(() => process.exit(1), 1000).unref();
 });

@@ -69,13 +69,35 @@ const getAllTickets = async (req, res, next) => {
     const { status } = req.query;
     const where = status ? { status } : {};
 
-    const tickets = await prisma.ticket.findMany({
-      where,
-      include: { user: { select: { id: true, name: true, email: true } } },
-      orderBy: { createdAt: 'desc' }
-    });
+    // M7 FIX: Add pagination to prevent unbounded result sets
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
 
-    res.json(ApiResponse.success(tickets, 'Tickets retrieved successfully', 200));
+    const [tickets, total] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+
+    res.json(ApiResponse.success(
+      {
+        tickets,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      },
+      'Tickets retrieved successfully',
+      200
+    ));
   } catch (error) {
     logger.error('tickets.list_admin.error', { status: req.query?.status, errorMessage: error?.message });
     next(internalError('Failed to fetch tickets', 'TICKETS_FETCH_FAILED', error));
