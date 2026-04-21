@@ -98,7 +98,7 @@ export default function WorkspaceDashboard() {
     try {
       setSaving(true);
       setError("");
-      const key = `week${week}` as const;
+      const key = `week${week}` as keyof WorkspaceProgress;
       const nextStatus = !progress[key];
       await api.updateWorkspaceProgress(week, nextStatus);
       setProgress((prev) => ({ ...prev, [key]: nextStatus }));
@@ -205,7 +205,7 @@ export default function WorkspaceDashboard() {
             <p className="mt-1 text-sm text-[#64748B]">Current project: {selectedProject?.title || "No project selected"}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3, 4].map((week) => {
-                const key = `week${week}` as const;
+                const key = `week${week}` as keyof WorkspaceProgress;
                 const done = progress[key];
                 return (
                   <button
