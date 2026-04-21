@@ -35,11 +35,11 @@ async function main() {
   console.log('✅ Created test user:', testUser.email);
 
   // Create admin user
-  const adminHashedPassword = await bcrypt.hash('admin123', 12);
+  const adminHashedPassword = await bcrypt.hash('admin@123', 12);
   const adminUser = await prisma.user.create({
     data: {
       name: 'Admin',
-      email: 'admin@example.com',
+      email: 'admin@mohit.in',
       password: adminHashedPassword,
       role: 'ADMIN',
     },
@@ -349,7 +349,7 @@ async function main() {
   console.log('✅ Created sample submissions');
   console.log('\n🎉 Seed complete!');
   console.log('📧 Test login: test@skillo.in / password123');
-  console.log('📧 Admin login: admin@example.com / admin123');
+  console.log('📧 Admin login: admin@mohit.in / admin@123');
 }
 
 main()
