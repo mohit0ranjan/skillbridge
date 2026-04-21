@@ -63,8 +63,9 @@ const protect = async (req, res, next) => {
     }
 
     // C3 FIX: Reject tokens issued before the latest tokenVersion
-    if (decoded.tv !== undefined && decoded.tv !== user.tokenVersion) {
-      logger.warn('auth.middleware.token_version_mismatch', { userId: decoded.id, tokenTv: decoded.tv, dbTv: user.tokenVersion });
+    const dbTokenVersion = user.tokenVersion || 0;
+    if (decoded.tv !== undefined && decoded.tv !== dbTokenVersion) {
+      logger.warn('auth.middleware.token_version_mismatch', { userId: decoded.id, tokenTv: decoded.tv, dbTv: dbTokenVersion });
       return res.status(401).json(ApiResponse.error('Session invalidated. Please login again.', 401, 'TOKEN_REVOKED'));
     }
 

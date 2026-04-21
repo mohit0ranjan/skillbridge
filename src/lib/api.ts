@@ -82,9 +82,20 @@ class ApiClient {
       throw new ApiError('Workspace session expired. Please login again.', 401, json);
     }
 
+    let wasAdmin = false;
+    try {
+      const storedUser = localStorage.getItem(AUTH_USER_KEY);
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        wasAdmin = parsed?.role === 'ADMIN';
+      }
+    } catch {
+      // ignore
+    }
+
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_USER_KEY);
-    window.location.href = '/login';
+    window.location.href = wasAdmin ? '/admin' : '/login';
     throw new ApiError('Session expired. Please login again.', 401, json);
   }
 

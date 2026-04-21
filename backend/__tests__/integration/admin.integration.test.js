@@ -2,7 +2,7 @@
  * Admin Controller Regression Tests
  */
 
-jest.mock('bcrypt', () => ({
+jest.mock('bcryptjs', () => ({
   hash: jest.fn(async (password) => `hashed:${password}`),
   compare: jest.fn(async (password, hashedPassword) => hashedPassword === `hashed:${password}`),
 }), { virtual: true });
