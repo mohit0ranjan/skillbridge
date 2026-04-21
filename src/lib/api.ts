@@ -240,7 +240,16 @@ class ApiClient {
   }
 
   async getAdminScreeningLeads() {
-    return this.request<any[]>('/admin/screening-leads');
+    if (typeof window === 'undefined') return [];
+    const token = this.getToken('/api/admin/screening-leads');
+    const res = await fetch('/api/admin/screening-leads', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    const json = await res.json();
+    if (!res.ok || (json.success === false)) {
+      throw new ApiError(json.message || "Failed to fetch leads", res.status, json);
+    }
+    return json.data !== undefined ? json.data : json;
   }
 
   async sendAdminMail(body: Record<string, unknown>) {
@@ -251,12 +260,21 @@ class ApiClient {
   }
 
   async postAdminAction(endpoint: string, body: Record<string, unknown>) {
-    // Strip "/api/v1" or "/api" if it was passed from older code
-    const path = endpoint.replace(/^\/api\/v1/, '').replace(/^\/api/, '');
-    return this.request<{ success?: boolean; message?: string }>(path, {
+    if (typeof window === 'undefined') return {};
+    const token = this.getToken(endpoint);
+    const res = await fetch(endpoint, {
       method: "POST",
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify(body)
     });
+    const json = await res.json();
+    if (!res.ok || (json.success === false)) {
+      throw new ApiError(json.message || "Action failed", res.status, json);
+    }
+    return json.data !== undefined ? json.data : json;
   }
 
   async reviewScreeningSubmission(submissionId: string, body: { status: 'UNDER_REVIEW' | 'SELECTED' | 'REJECTED'; score?: number; feedback?: string }) {
