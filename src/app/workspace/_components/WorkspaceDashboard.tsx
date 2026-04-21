@@ -15,6 +15,14 @@ import {
 } from "@/lib/api";
 
 type Tab = "projects" | "progress" | "submission";
+type WeekNumber = 1 | 2 | 3 | 4;
+
+const WEEK_KEYS: Record<WeekNumber, keyof WorkspaceProgress> = {
+  1: "week1",
+  2: "week2",
+  3: "week3",
+  4: "week4",
+};
 
 const EMPTY_PROGRESS: WorkspaceProgress = {
   week1: false,
@@ -94,11 +102,11 @@ export default function WorkspaceDashboard() {
     }
   };
 
-  const handleToggleWeek = async (week: number) => {
+  const handleToggleWeek = async (week: WeekNumber) => {
     try {
       setSaving(true);
       setError("");
-      const key = `week${week}` as keyof WorkspaceProgress;
+      const key = WEEK_KEYS[week];
       const nextStatus = !progress[key];
       await api.updateWorkspaceProgress(week, nextStatus);
       setProgress((prev) => ({ ...prev, [key]: nextStatus }));
@@ -204,8 +212,8 @@ export default function WorkspaceDashboard() {
             <h2 className="text-lg font-bold text-[#0F172A]">Weekly progress</h2>
             <p className="mt-1 text-sm text-[#64748B]">Current project: {selectedProject?.title || "No project selected"}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[1, 2, 3, 4].map((week) => {
-                const key = `week${week}` as keyof WorkspaceProgress;
+              {([1, 2, 3, 4] as const).map((week) => {
+                const key = WEEK_KEYS[week];
                 const done = progress[key];
                 return (
                   <button
